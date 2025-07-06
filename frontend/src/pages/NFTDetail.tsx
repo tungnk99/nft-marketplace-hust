@@ -1,0 +1,263 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useNFT, NFTWithMetadata } from '../contexts/NFTContext';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { ArrowLeft, Calendar, User, Tag, Zap, Copy } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
+
+const NFTDetail: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { nfts, userAddress, buyNFT, getNFTWithMetadata } = useNFT();
+  const [isBuying, setIsBuying] = useState(false);
+  const [nftWithMetadata, setNftWithMetadata] = useState<NFTWithMetadata | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const nft = nfts.find(n => n.id === id);
+
+  useEffect(() => {
+    const loadMetadata = async () => {
+      if (nft) {
+        try {
+          setLoading(true);
+          const metadata = await getNFTWithMetadata(nft);
+          setNftWithMetadata(metadata);
+        } catch (error) {
+          console.error('Error loading NFT metadata:', error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+
+    loadMetadata();
+  }, [nft, getNFTWithMetadata]);
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <LoadingSpinner />
+        <p className="text-gray-600 mt-4">Loading NFT details...</p>
+      </div>
+    );
+  }
+
+  if (!nft || !nftWithMetadata) {
+    return (
+      <div className="text-center py-12">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">NFT Not Found</h1>
+        <p className="text-gray-600 mb-6">The NFT you're looking for doesn't exist or metadata is not loaded.</p>
+        <Link to="/">
+          <Button variant="outline">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Marketplace
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  const isOwner = nft.owner.toLowerCase() === userAddress.toLowerCase();
+  const canBuy = nft.isForSale && !isOwner;
+
+  const handleBuy = async () => {
+    if (canBuy) {
+      try {
+        setIsBuying(true);
+        await buyNFT(nft.id);
+        navigate('/');
+      } catch (error) {
+        console.error('Error buying NFT:', error);
+      } finally {
+        setIsBuying(false);
+      }
+    }
+  };
+
+  function shortenAddress(addr: string) {
+    return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '';
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-6">
+        <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Image Section */}
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              <img
+                src={nftWithMetadata.image}
+                alt={nftWithMetadata.name}
+                className="w-full h-96 lg:h-[500px] object-cover rounded-lg"
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Details Section */}
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">{nftWithMetadata.name}</h1>
+            <div className="flex items-center gap-2 mb-4">
+              <Badge variant="outline">{nftWithMetadata.category}</Badge>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Description</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">{nftWithMetadata.description}</p>
+            </CardContent>
+          </Card>
+
+          {/* Attributes Section */}
+          {nftWithMetadata.attributes && nftWithMetadata.attributes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Attributes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {nftWithMetadata.attributes.map((attr, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <span className="text-sm font-medium text-gray-700">{attr.trait_type}</span>
+                      <Badge variant="outline">{attr.value}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Owner</span>
+                </div>
+                <span className="text-sm font-mono flex items-center gap-1">
+                  {shortenAddress(nft.owner)}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(nft.owner);
+                      // @ts-ignore
+                      if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Owner address copied.' });
+                    }}
+                    className="hover:text-blue-600"
+                    title="Copy owner address"
+                    type="button"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Creator</span>
+                </div>
+                <span className="text-sm font-mono flex items-center gap-1">
+                  {shortenAddress(nft.creator)}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(nft.creator);
+                      // @ts-ignore
+                      if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Creator address copied.' });
+                    }}
+                    className="hover:text-blue-600"
+                    title="Copy creator address"
+                    type="button"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Created</span>
+                </div>
+                <span className="text-sm">
+                  {nft.createdAt.toLocaleDateString()}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Token ID</span>
+                </div>
+                <span className="text-sm font-mono">#{nft.id}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Price and Buy Section */}
+          {nft.isForSale && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Price</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-yellow-500" />
+                    <span className="text-2xl font-bold">{nft.price} ETH</span>
+                  </div>
+                </div>
+                
+                {canBuy && (
+                  <Button 
+                    onClick={handleBuy}
+                    disabled={isBuying}
+                    className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                    size="lg"
+                  >
+                    {isBuying ? 'Buying...' : 'Buy Now'}
+                  </Button>
+                )}
+                
+                {isOwner && (
+                  <Badge variant="secondary" className="w-full justify-center py-2">
+                    You own this NFT
+                  </Badge>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {!nft.isForSale && !isOwner && (
+            <Card>
+              <CardContent className="py-6">
+                <Badge variant="secondary" className="w-full justify-center py-2">
+                  Not for sale
+                </Badge>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default NFTDetail;

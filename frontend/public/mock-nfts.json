@@ -1,0 +1,38 @@
+[
+  {
+    "id": "1",
+    "cid": "QmddUHDZcdRNPaSMxJJ6sAhNhiTu6gWCCvNSJ2MCRsXYpa",
+    "price": 2.5,
+    "owner": "0x742d35Cc6634C0532925a3b8D42342637AB2B67F",
+    "creator": "0x742d35Cc6634C0532925a3b8D42342637AB2B67F",
+    "isForSale": true,
+    "createdAt": "2024-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "2",
+    "cid": "QmRgMwQfyhurSqakqcK3HUopJbVuZd68MDubZphzchi1AD",
+    "price": 1.8,
+    "owner": "0x8ba1f109551bD432803012645Hac136c0532925b",
+    "creator": "0x8ba1f109551bD432803012645Hac136c0532925b",
+    "isForSale": true,
+    "createdAt": "2024-01-10T00:00:00.000Z"
+  },
+  {
+    "id": "3",
+    "cid": "QmbkfQJb6RFLoNWb5vmv4geugBznSZ8PQzKACNDyNq5MSw",
+    "price": 1.8,
+    "owner": "0xd9576f758132987794c7bd0d080d194b7602c775",
+    "creator": "0x8ba1f109551bD432803012645Hac136c0532925b",
+    "isForSale": true,
+    "createdAt": "2024-01-10T00:00:00.000Z"
+  },
+  {
+    "id": "4",
+    "cid": "QmRqVg4vw7Yc83uyyMFsDsadkogyQ7fFouKT4wMs2pqkFY",
+    "price": 1.8,
+    "owner": "0xd9576f758132987794c7bd0d080d194b7602c775",
+    "creator": "0x8ba1f109551bD432803012645Hac136c0532925b",
+    "isForSale": true,
+    "createdAt": "2024-01-10T00:00:00.000Z"
+  }
+] 

@@ -1,0 +1,217 @@
+import React, { useState } from 'react';
+import { NFT, NFTWithMetadata } from '../contexts/NFTContext';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card';
+import { Wallet, Tag, User, Calendar, Copy } from 'lucide-react';
+
+interface NFTCardProps {
+  nft: NFTWithMetadata;
+  onClick?: () => void;
+  onBuy?: (id: string) => void;
+  onList?: (id: string, price: number) => void;
+  onDelist?: (id: string) => void;
+  showBuyButton?: boolean;
+  showListButton?: boolean;
+  showDelistButton?: boolean;
+}
+
+const NFTCard: React.FC<NFTCardProps> = ({ 
+  nft, 
+  onClick,
+  onBuy, 
+  onList, 
+  onDelist,
+  showBuyButton = false, 
+  showListButton = false,
+  showDelistButton = false
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [listPrice, setListPrice] = useState('');
+  const [showListForm, setShowListForm] = useState(false);
+
+  const handleBuy = async () => {
+    setIsLoading(true);
+    // Simulate transaction delay
+    setTimeout(() => {
+      onBuy?.(nft.id);
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  const handleList = () => {
+    const price = parseFloat(listPrice);
+    if (price > 0) {
+      onList?.(nft.id, price);
+      setShowListForm(false);
+      setListPrice('');
+    }
+  };
+
+  const handleDelist = () => {
+    onDelist?.(nft.id);
+  };
+
+  const handleCardClick = () => {
+    onClick?.();
+  };
+
+  function shortenAddress(addr: string) {
+    return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '';
+  }
+
+  return (
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer" onClick={handleCardClick}>
+      <CardHeader className="p-0">
+        <div className="relative">
+          <img
+            src={nft.image}
+            alt={nft.name}
+            className="w-full h-64 object-cover"
+          />
+          <div className="absolute top-2 right-2 flex flex-col gap-1">
+            {nft.isForSale && (
+              <Badge className="bg-green-500 hover:bg-green-600">
+                For Sale
+              </Badge>
+            )}
+          </div>
+          <div className="absolute top-2 left-2">
+            <Badge variant="secondary" className="text-xs">
+              {nft.category}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="p-4">
+        <CardTitle className="text-lg mb-2">{nft.name}</CardTitle>
+        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{nft.description}</p>
+        
+        {/* Display attributes if available */}
+        {nft.attributes && nft.attributes.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {nft.attributes.map((attr, index) => (
+              <Badge key={index} variant="outline" className="text-xs">
+                {attr.trait_type}: {attr.value}
+              </Badge>
+            ))}
+          </div>
+        )}
+        
+        <div className="space-y-2 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <Wallet className="w-3 h-3 mr-1" />
+            <span className="mr-2">Owner:</span>
+            <span className="font-mono">{shortenAddress(nft.owner)}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(nft.owner);
+                // @ts-ignore
+                if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Owner address copied.' });
+              }}
+              className="hover:text-blue-600"
+              title="Copy owner address"
+              type="button"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            <User className="w-3 h-3 mr-1" />
+            <span className="mr-2">Creator:</span>
+            <span className="font-mono">{shortenAddress(nft.creator)}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(nft.creator);
+                // @ts-ignore
+                if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Creator address copied.' });
+              }}
+              className="hover:text-blue-600"
+              title="Copy creator address"
+              type="button"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="flex items-center">
+            <Calendar className="w-3 h-3 mr-1" />
+            <span className="mr-2">Created:</span>
+            <span>{nft.createdAt.toLocaleDateString()}</span>
+          </div>
+        </div>
+        
+        {nft.isForSale && (
+          <div className="flex items-center text-lg font-bold text-blue-600 mt-3">
+            <Tag className="w-4 h-4 mr-1" />
+            {nft.price} ETH
+          </div>
+        )}
+      </CardContent>
+      
+      <CardFooter className="p-4 pt-0" onClick={(e) => e.stopPropagation()}>
+        {showBuyButton && nft.isForSale && (
+          <Button 
+            onClick={handleBuy} 
+            disabled={isLoading}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+          >
+            {isLoading ? 'Processing...' : `Buy for ${nft.price} ETH`}
+          </Button>
+        )}
+        
+        {showDelistButton && nft.isForSale && (
+          <Button 
+            onClick={handleDelist}
+            variant="outline"
+            className="w-full border-red-300 text-red-600 hover:bg-red-50"
+          >
+            Delist from Sale
+          </Button>
+        )}
+        
+        {showListButton && !nft.isForSale && (
+          <div className="w-full">
+            {!showListForm ? (
+              <Button 
+                onClick={() => setShowListForm(true)}
+                variant="outline"
+                className="w-full"
+              >
+                List for Sale
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="Price in ETH"
+                  value={listPrice}
+                  onChange={(e) => setListPrice(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+                <div className="flex space-x-2">
+                  <Button onClick={handleList} size="sm" className="flex-1">
+                    List
+                  </Button>
+                  <Button 
+                    onClick={() => setShowListForm(false)} 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardFooter>
+    </Card>
+  );
+};
+
+export default NFTCard;
