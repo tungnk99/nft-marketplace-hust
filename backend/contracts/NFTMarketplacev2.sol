@@ -236,6 +236,10 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         return listings;
     }
 
+    function getListingById(address nft, uint256 tokenId) external view returns (Listing memory) {
+        return _listings[nft][tokenId];
+    }
+
     function _removeListing(address nft, uint256 tokenId, address seller) internal {
         delete _listings[nft][tokenId];
         Listing[] storage items = _sellerListings[seller];
