@@ -5,22 +5,24 @@ const { ethers, run, network } = require("hardhat");
 async function main() {
   console.log("📦 Deploying contracts...");
 
-  const NFT = await ethers.getContractFactory("NFT");
-  const nft = await NFT.deploy();
-  const nftResponse = await nft.waitForDeployment();
-  console.log("✅ NFT contract deployed to:", await nftResponse.getAddress());
-
-  const Marketplace = await ethers.getContractFactory("NFTMarketplace");
+  const Marketplace = await ethers.getContractFactory(process.env.NFT_MARKETPLACE_CONTRACT_NAME || "NFTMarketplace");
   const market = await Marketplace.deploy();
   const marketResponse = await market.waitForDeployment();
-  console.log("✅ NFTMarketplace contract deployed to:", await marketResponse.getAddress());
+  const marketplaceAddress = await marketResponse.getAddress();
+  console.log("✅ NFTMarketplace contract deployed to:", marketplaceAddress);
+
+  const NFT = await ethers.getContractFactory(process.env.NFT_CONTRACT_NAME || "NFT");
+  const nft = await NFT.deploy(marketplaceAddress);
+  const nftResponse = await nft.waitForDeployment();
+  const nftAddress = await nftResponse.getAddress();
+  console.log("✅ NFT contract deployed to:", nftAddress);
 
   if (network.name === "sepolia") {
     console.log("⏳ Waiting for Etherscan to index...");
     await sleep(30000);
 
-    await verify(await nftResponse.getAddress(), []);
-    await verify(await marketResponse.getAddress(), []);
+    await verify(nftAddress, [marketplaceAddress]);
+    await verify(marketplaceAddress, []);
   }
 
   await saveDeployedContractInfo(nftResponse, "NFT");
@@ -46,7 +48,7 @@ async function verify(address, args) {
 }
 
 async function saveDeployedContractInfo(contract, name) {
-  const contractsDir = path.join(__dirname, "../frontend/constants");
+  const contractsDir = path.join(__dirname, "../deployed_information");
 
   if (!fs.existsSync(contractsDir)) {
     fs.mkdirSync(contractsDir, { recursive: true });
