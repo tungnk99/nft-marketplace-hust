@@ -1,6 +1,9 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("@nomicfoundation/hardhat-verify");
 
+const dotenv = require("dotenv");
+dotenv.config();
+
 // Ensure your configuration variables are set before executing the script
 const { vars } = require("hardhat/config");
 
