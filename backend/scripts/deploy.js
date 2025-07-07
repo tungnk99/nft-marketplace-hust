@@ -1,17 +1,18 @@
 const fs = require("fs");
 const path = require("path");
 const { ethers, run, network } = require("hardhat");
+require("dotenv").config();
 
 async function main() {
   console.log("📦 Deploying contracts...");
 
-  const Marketplace = await ethers.getContractFactory(process.env.NFT_MARKETPLACE_CONTRACT_NAME || "NFTMarketplace");
+  const Marketplace = await ethers.getContractFactory(process.env.NFT_MARKETPLACE_CONTRACT_NAME || "NFTMarketplacev2");
   const market = await Marketplace.deploy();
   const marketResponse = await market.waitForDeployment();
   const marketplaceAddress = await marketResponse.getAddress();
   console.log("✅ NFTMarketplace contract deployed to:", marketplaceAddress);
 
-  const NFT = await ethers.getContractFactory(process.env.NFT_CONTRACT_NAME || "NFT");
+  const NFT = await ethers.getContractFactory(process.env.NFT_CONTRACT_NAME || "NFTv2");
   const nft = await NFT.deploy(marketplaceAddress);
   const nftResponse = await nft.waitForDeployment();
   const nftAddress = await nftResponse.getAddress();
@@ -25,8 +26,8 @@ async function main() {
     await verify(marketplaceAddress, []);
   }
 
-  await saveDeployedContractInfo(nftResponse, "NFT");
-  await saveDeployedContractInfo(marketResponse, "NFTMarketplace");
+  await saveDeployedContractInfo(nftResponse, "NFTv2");
+  await saveDeployedContractInfo(marketResponse, "NFTMarketplacev2");
 
   console.log("✅ All contracts saved and verified.");
 }
@@ -68,7 +69,7 @@ async function saveDeployedContractInfo(contract, name) {
   const abiFile = path.join(contractsDir, `${name}_abi.json`);
   fs.writeFileSync(abiFile, JSON.stringify(artifact, null, 2));
 
-  console.log(`📁 Saved ${name} address and ABI to frontend/constants/`);
+  console.log(`📁 Saved ${name} address and ABI to contracts/`);
 }
 
 function sleep(ms) {
