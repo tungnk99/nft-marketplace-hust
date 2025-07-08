@@ -54,6 +54,7 @@ contract NFTv2 is ERC721URIStorage, Ownable {
 
     function mint(string memory tokenURI, uint256 royaltyFee) external returns (uint256) {
         require(royaltyFee >= 0, "Royalty must be non-negative");
+        require(royaltyFee <= 100, "Royalty fee cannot exceed 100%");
 
         _tokenIds++;
         uint256 newItemId = _tokenIds;
@@ -96,6 +97,7 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         require(ownerOf(tokenId) == msg.sender, "Not token owner");
         require(_nftInfos[tokenId].creator == msg.sender, "Not creator");
         require(newRoyalty >= 0, "Royalty must be non-negative");
+        require(newRoyalty <= 100, "Royalty fee cannot exceed 100%");
 
         _nftInfos[tokenId].royaltyFee = newRoyalty;
         emit NFTRoyaltyUpdated(tokenId, newRoyalty, block.timestamp);
@@ -135,9 +137,17 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         return ownedTokens;
     }
 
-    function getTokenInfoById(uint256 tokenId) external view returns (NFTInfo memory) {
+    function getTokenInfoById(uint256 tokenId) external view returns (NFTInfoWithOwner memory) {
         require(_exists(tokenId), "Token does not exist");
-        return _nftInfos[tokenId];
+        NFTInfoWithOwner memory nftInfoWithOwner = NFTInfoWithOwner({
+            tokenId: tokenId,
+            tokenURI: _nftInfos[tokenId].tokenURI,
+            creator: _nftInfos[tokenId].creator,
+            owner: ownerOf(tokenId),
+            royaltyFee: _nftInfos[tokenId].royaltyFee,
+            mintedAt: _nftInfos[tokenId].mintedAt
+        });
+        return nftInfoWithOwner;
     }
 
     function getTokenInfoByCreator(address creator) external view returns (NFTInfoWithOwner[] memory) {

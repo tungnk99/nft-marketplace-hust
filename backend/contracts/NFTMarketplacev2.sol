@@ -66,7 +66,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
 
     function listItem(address nft, uint256 tokenId, uint256 price) external payable nonReentrant {
         require(msg.value >= _listingFee, "Listing fee not paid");
-        require(price > 0, "Price must be > 0");
+        require(price > 100, "Price must be > 100 wei");
 
         IERC721 token = IERC721(nft);
         require(token.ownerOf(tokenId) == msg.sender, "Not owner");
@@ -84,7 +84,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         Listing storage item = _listings[nft][tokenId];
         require(item.seller != address(0), "Not listed");
         require(item.seller == msg.sender, "Not seller");
-        require(newPrice > 0, "Price must be > 0");
+        require(newPrice > 100, "Price must be > 100 wei");
         require(newPrice != item.price, "Price already set to this value");
 
         item.price = newPrice;
@@ -130,8 +130,11 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         require(IERC721(nft).getApproved(tokenId) == address(this), "Not approved");
         require(msg.value >= item.price, "Insufficient ETH");
 
-        uint256 royaltyFee = INFT(nft).getRoyaltyOfToken(tokenId);
+        uint256 royaltyPercent = INFT(nft).getRoyaltyOfToken(tokenId);
         address creator = INFT(nft).getCreatorOfToken(tokenId);
+
+        uint256 royaltyFee = (item.price * royaltyPercent) / 100;
+        require(royaltyFee <= msg.value, "Royalty fee exceeds payment");
 
         uint256 sellerAmount = item.price - royaltyFee;
 
