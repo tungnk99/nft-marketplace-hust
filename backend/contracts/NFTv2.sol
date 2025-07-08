@@ -137,9 +137,17 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         return ownedTokens;
     }
 
-    function getTokenInfoById(uint256 tokenId) external view returns (NFTInfo memory) {
+    function getTokenInfoById(uint256 tokenId) external view returns (NFTInfoWithOwner memory) {
         require(_exists(tokenId), "Token does not exist");
-        return _nftInfos[tokenId];
+        NFTInfoWithOwner memory nftInfoWithOwner = NFTInfoWithOwner({
+            tokenId: tokenId,
+            tokenURI: _nftInfos[tokenId].tokenURI,
+            creator: _nftInfos[tokenId].creator,
+            owner: ownerOf(tokenId),
+            royaltyFee: _nftInfos[tokenId].royaltyFee,
+            mintedAt: _nftInfos[tokenId].mintedAt
+        });
+        return nftInfoWithOwner;
     }
 
     function getTokenInfoByCreator(address creator) external view returns (NFTInfoWithOwner[] memory) {
