@@ -54,6 +54,7 @@ contract NFTv2 is ERC721URIStorage, Ownable {
 
     function mint(string memory tokenURI, uint256 royaltyFee) external returns (uint256) {
         require(royaltyFee >= 0, "Royalty must be non-negative");
+        require(royaltyFee <= 100, "Royalty fee cannot exceed 100%");
 
         _tokenIds++;
         uint256 newItemId = _tokenIds;
@@ -96,6 +97,7 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         require(ownerOf(tokenId) == msg.sender, "Not token owner");
         require(_nftInfos[tokenId].creator == msg.sender, "Not creator");
         require(newRoyalty >= 0, "Royalty must be non-negative");
+        require(newRoyalty <= 100, "Royalty fee cannot exceed 100%");
 
         _nftInfos[tokenId].royaltyFee = newRoyalty;
         emit NFTRoyaltyUpdated(tokenId, newRoyalty, block.timestamp);
