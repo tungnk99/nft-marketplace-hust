@@ -1,36 +1,48 @@
-import React, { useState } from 'react';
-import { useNFT } from '../contexts/NFTContext';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { toast } from '@/hooks/use-toast';
-import { Upload, Palette, Image as ImageIcon } from 'lucide-react';
-
+import React, { useState } from "react";
+import { ethers } from "ethers";
+import { useNFT } from "../contexts/NFTContext";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { toast } from "@/hooks/use-toast";
+import { Upload, Palette, Image as ImageIcon } from "lucide-react";
+/* Import contracts abi and adress */
+import NFT_address from "../../../backend/deployed_information/contract_addresses.json";
+import NFT_abi from "../../../backend/deployed_information/NFTv2_abi.json";
+let _provider = new ethers.BrowserProvider(window.ethereum);
+let _token = new ethers.Contract(
+  NFT_address.NFTv2,
+  NFT_abi.abi,
+  await _provider.getSigner(0)
+);
 interface MintNFTFormProps {
   onMintSuccess?: (nftId: string) => void;
 }
-
 const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
   const { mintNFT, userAddress } = useNFT();
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    image: '',
-    category: 'Art',
+    name: "",
+    description: "",
+    image: "",
+    category: "Art",
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [imagePreview, setImagePreview] = useState('');
+  const [imagePreview, setImagePreview] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      if (file.size > 10 * 1024 * 1024) {
+        // 10MB limit
         toast({
           title: "File too large",
           description: "Please select a file smaller than 10MB.",
@@ -39,7 +51,12 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
         return;
       }
 
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+      ];
       if (!allowedTypes.includes(file.type)) {
         toast({
           title: "Invalid file type",
@@ -50,13 +67,13 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
       }
 
       setUploadedFile(file);
-      
+
       // Create preview URL
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
         setImagePreview(result);
-        setFormData(prev => ({ ...prev, image: result }));
+        setFormData((prev) => ({ ...prev, image: result }));
       };
       reader.readAsDataURL(file);
     }
@@ -64,11 +81,12 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.description || !uploadedFile) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all fields and upload an image before minting.",
+        description:
+          "Please fill in all fields and upload an image before minting.",
         variant: "destructive",
       });
       return;
@@ -78,8 +96,9 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
 
     try {
       toast({
-        title: "Uploading to IPFS...",
-        description: "Please wait while we upload your NFT to IPFS.",
+        title: "Uploading to IPFS and blockchain...",
+        description:
+          "Please wait while we upload your NFT to IPFS and into blockchain.",
       });
 
       // Upload to Pinata directly from frontend
@@ -88,24 +107,28 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
         description: formData.description,
         category: formData.category,
         attributes: [{ trait_type: "Category", value: formData.category }],
-        creator: userAddress
+        creator: userAddress,
       });
 
       // Add to local NFT collection and get the new NFT ID
       const newNFTId = await mintNFT(result.NFTCid);
-      
+      /* Update infomation in blockchain */
+      _token.mint(
+        "https://turquoise-tired-mosquito-111.mypinata.cloud/ipfs/" +
+          result.NFTCid,
+        20
+      );
       // Reset form
-      setFormData({ name: '', description: '', image: '', category: 'Art' });
-      setImagePreview('');
+      setFormData({ name: "", description: "", image: "", category: "Art" });
+      setImagePreview("");
       setUploadedFile(null);
-      
+
       // Call success callback with the new NFT ID
       if (onMintSuccess) {
         onMintSuccess(newNFTId);
       }
-
     } catch (error: any) {
-      console.error('Mint error:', error);
+      console.error("Mint error:", error);
       toast({
         title: "Mint Failed",
         description: error.message || "Failed to mint NFT. Please try again.",
@@ -119,33 +142,38 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
   // Function to upload to Pinata directly
   const uploadToIPFS = async (file: File, metadata: any) => {
     const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
-    
+
     if (!PINATA_JWT) {
-      throw new Error('Pinata JWT not configured. Please add VITE_PINATA_JWT to your environment variables.');
+      throw new Error(
+        "Pinata JWT not configured. Please add VITE_PINATA_JWT to your environment variables."
+      );
     }
 
     try {
       // Step 1: Upload image file with pinataMetadata
       const formData = new FormData();
-      formData.append('file', file);
-      
+      formData.append("file", file);
+
       // Add pinataMetadata for better organization
       const pinataMetadata = JSON.stringify({
         name: `${metadata.name}-image`,
         keyvalues: {
-          type: 'nft-image',
-          category: metadata.attributes?.[0]?.value || 'Unknown'
-        }
-      });
-      formData.append('pinataMetadata', pinataMetadata);
-
-      const imageRes = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${PINATA_JWT}`
+          type: "nft-image",
+          category: metadata.attributes?.[0]?.value || "Unknown",
         },
-        body: formData
       });
+      formData.append("pinataMetadata", pinataMetadata);
+
+      const imageRes = await fetch(
+        "https://api.pinata.cloud/pinning/pinFileToIPFS",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${PINATA_JWT}`,
+          },
+          body: formData,
+        }
+      );
 
       if (!imageRes.ok) {
         throw new Error(`Failed to upload image: ${imageRes.statusText}`);
@@ -155,31 +183,34 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
       const imageUrl = `https://gateway.pinata.cloud/ipfs/${imageData.IpfsHash}`;
 
       // Step 2: Upload metadata with image URL and pinataMetadata
-      const metadataWithImage = { 
-        ...metadata, 
+      const metadataWithImage = {
+        ...metadata,
         image: imageUrl,
-        creator: metadata.creator
+        creator: metadata.creator,
       };
 
       const metadataPayload = {
         pinataMetadata: {
           name: `${metadata.name}-metadata`,
           keyvalues: {
-            type: 'nft-metadata',
-            category: metadata.attributes?.[0]?.value || 'Unknown'
-          }
+            type: "nft-metadata",
+            category: metadata.attributes?.[0]?.value || "Unknown",
+          },
         },
-        pinataContent: metadataWithImage
+        pinataContent: metadataWithImage,
       };
 
-      const metadataRes = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${PINATA_JWT}`
-        },
-        body: JSON.stringify(metadataPayload)
-      });
+      const metadataRes = await fetch(
+        "https://api.pinata.cloud/pinning/pinJSONToIPFS",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${PINATA_JWT}`,
+          },
+          body: JSON.stringify(metadataPayload),
+        }
+      );
 
       if (!metadataRes.ok) {
         throw new Error(`Failed to upload metadata: ${metadataRes.statusText}`);
@@ -189,11 +220,10 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
 
       return {
         NFTCid: metadataData.IpfsHash,
-        imageUrl
+        imageUrl,
       };
-
     } catch (error) {
-      console.error('Upload to IPFS error:', error);
+      console.error("Upload to IPFS error:", error);
       throw new Error(`Failed to upload to IPFS: ${error.message}`);
     }
   };
@@ -209,7 +239,10 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="name"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               NFT Name *
             </label>
             <input
@@ -225,7 +258,10 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="description"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               Description *
             </label>
             <textarea
@@ -241,7 +277,10 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
           </div>
 
           <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="category"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               Category *
             </label>
             <select
@@ -265,7 +304,7 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Image *
             </label>
-            
+
             {/* File Upload */}
             <div className="mb-4">
               <label htmlFor="file-upload" className="cursor-pointer">
@@ -274,7 +313,8 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
                   <div className="text-sm text-gray-600">
                     <span className="font-medium text-blue-600 hover:text-blue-500">
                       Click to upload
-                    </span> or drag and drop
+                    </span>{" "}
+                    or drag and drop
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     PNG, JPG, GIF, WebP up to 10MB
@@ -295,8 +335,12 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
               <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="text-sm">
-                    <p className="font-medium text-blue-900">{uploadedFile.name}</p>
-                    <p className="text-blue-700">{(uploadedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <p className="font-medium text-blue-900">
+                      {uploadedFile.name}
+                    </p>
+                    <p className="text-blue-700">
+                      {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
                   </div>
                   <Button
                     type="button"
@@ -304,8 +348,8 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
                     size="sm"
                     onClick={() => {
                       setUploadedFile(null);
-                      setImagePreview('');
-                      setFormData(prev => ({ ...prev, image: '' }));
+                      setImagePreview("");
+                      setFormData((prev) => ({ ...prev, image: "" }));
                     }}
                   >
                     Remove
@@ -317,9 +361,15 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
 
           {imagePreview && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Preview</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Preview
+              </label>
               <div className="border border-gray-300 rounded-lg overflow-hidden max-w-xs">
-                <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover" />
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-full h-48 object-cover"
+                />
               </div>
             </div>
           )}
