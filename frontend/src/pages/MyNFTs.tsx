@@ -17,12 +17,13 @@ const ITEMS_PER_PAGE = 8;
 
 const MyNFTs: React.FC = () => {
   const navigate = useNavigate();
-  const { getUserNFTs, listNFTForSale, delistNFT, nfts: allNfts, getNFTWithMetadata } = useNFT();
+  const { getUserNFTs, listNFT, delistNFT, getNFTWithMetadata } = useNFT();
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState('collection');
   const [sortBy, setSortBy] = useState('name');
   const [nftsWithMetadata, setNftsWithMetadata] = useState<NFTWithMetadata[]>([]);
+  const [userNFTs, setUserNFTs] = useState<NFT[]>([]);
   const [filters, setFilters] = useState<FilterOptions>({
     search: '',
     category: 'all',
@@ -31,33 +32,11 @@ const MyNFTs: React.FC = () => {
   });
   const { isConnected, account } = useMetaMask();
 
-  // Memoize userNFTs để tránh thay đổi reference
-  const userNFTs = useMemo(() => {
-    console.log('MyNFTs: userNFTs memo recalculated', { isConnected, account });
-    if (!isConnected || !account) return [];
-    return getUserNFTs();
-  }, [getUserNFTs, isConnected, account]);
-
-  // Theo dõi thay đổi của allNfts để force reload khi có NFT mới
+  // Load user NFTs from blockchain
   useEffect(() => {
-    console.log('MyNFTs: allNfts changed, count:', allNfts.length);
-    if (isConnected && account && allNfts.length > 0) {
-      // Force reload metadata
-      setLoading(true);
-    }
-  }, [allNfts.length, isConnected, account]);
-
-  // Load metadata chỉ khi userNFTs thay đổi và có kết nối
-  useEffect(() => {
-    console.log('MyNFTs: useEffect triggered', { 
-      userNFTsLength: userNFTs.length, 
-      isConnected, 
-      account,
-      nftsWithMetadataLength: nftsWithMetadata.length 
-    });
-    
-    const loadMetadata = async () => {
-      if (!isConnected || !account || userNFTs.length === 0) {
+    const loadUserNFTs = async () => {
+      if (!isConnected || !account) {
+        setUserNFTs([]);
         setNftsWithMetadata([]);
         setLoading(false);
         return;
@@ -65,21 +44,26 @@ const MyNFTs: React.FC = () => {
       
       setLoading(true);
       try {
-        const results = await Promise.allSettled(userNFTs.map(nft => getNFTWithMetadata(nft)));
+        const nfts = await getUserNFTs();
+        setUserNFTs(nfts);
+        
+        // Load metadata for all NFTs
+        const results = await Promise.allSettled(nfts.map(nft => getNFTWithMetadata(nft)));
         const validNFTs = results
           .filter(r => r.status === 'fulfilled' && r.value)
           .map(r => (r as PromiseFulfilledResult<NFTWithMetadata>).value);
         setNftsWithMetadata(validNFTs);
       } catch (error) {
-        console.error('Error loading metadata:', error);
+        console.error('Error loading user NFTs:', error);
+        setUserNFTs([]);
         setNftsWithMetadata([]);
       } finally {
         setLoading(false);
       }
     };
     
-    loadMetadata();
-  }, [userNFTs, getNFTWithMetadata, isConnected, account]);
+    loadUserNFTs();
+  }, [isConnected, account, getUserNFTs, getNFTWithMetadata]);
 
   // Xử lý disconnect - chỉ reset state, không navigate
   useEffect(() => {
@@ -106,7 +90,7 @@ const MyNFTs: React.FC = () => {
       }
       
       // Price range filter (only for listed NFTs)
-      if (filters.priceRange !== 'all' && nft.isForSale) {
+      if (filters.priceRange !== 'all' && nft.isListing) {
         const price = nft.price || 0;
         switch (filters.priceRange) {
           case '0-0.1':
@@ -124,10 +108,10 @@ const MyNFTs: React.FC = () => {
 
       // Listing status filter (only for collection tab)
       if (activeTab === 'collection' && filters.listingStatus !== 'all') {
-        if (filters.listingStatus === 'listed' && !nft.isForSale) {
+        if (filters.listingStatus === 'listed' && !nft.isListing) {
           return false;
         }
-        if (filters.listingStatus === 'not-listed' && nft.isForSale) {
+        if (filters.listingStatus === 'not-listed' && nft.isListing) {
           return false;
         }
       }
@@ -152,7 +136,7 @@ const MyNFTs: React.FC = () => {
         case 'category':
           return a.category.localeCompare(b.category);
         case 'status':
-          return (nftB?.isForSale ? 1 : 0) - (nftA?.isForSale ? 1 : 0);
+          return (nftB?.isListing ? 1 : 0) - (nftA?.isListing ? 1 : 0);
         default:
           return 0;
       }
@@ -167,7 +151,7 @@ const MyNFTs: React.FC = () => {
     } else if (activeTab === 'listed') {
       baseNFTs = nftsWithMetadata.filter(nftWithMetadata => {
         const nft = userNFTs.find(n => n.id === nftWithMetadata.id);
-        return nft?.isForSale;
+        return nft?.isListing;
       });
     } else {
       return []; // mint tab doesn't need NFTs
@@ -220,9 +204,10 @@ const MyNFTs: React.FC = () => {
   const handleListNFT = async (id: string, price: number) => {
     console.log('Listing NFT:', id, 'for price:', price);
     try {
-      await listNFTForSale(id, price);
-      // Reload metadata for all user NFTs
-      const updatedNFTs = getUserNFTs();
+      await listNFT(id, price);
+      // Reload user NFTs from blockchain
+      const updatedNFTs = await getUserNFTs();
+      setUserNFTs(updatedNFTs);
       const metas = await Promise.all(updatedNFTs.map(async nft => await getNFTWithMetadata(nft)));
       setNftsWithMetadata(metas.filter(Boolean));
       toast({
@@ -243,8 +228,9 @@ const MyNFTs: React.FC = () => {
     console.log('Delisting NFT:', id);
     try {
       await delistNFT(id);
-      // Reload metadata for all user NFTs
-      const updatedNFTs = getUserNFTs();
+      // Reload user NFTs from blockchain
+      const updatedNFTs = await getUserNFTs();
+      setUserNFTs(updatedNFTs);
       const metas = await Promise.all(updatedNFTs.map(async nft => await getNFTWithMetadata(nft)));
       setNftsWithMetadata(metas.filter(Boolean));
       toast({
@@ -296,7 +282,7 @@ const MyNFTs: React.FC = () => {
   const collectionNFTs = activeTab === 'collection' ? getDisplayNFTs : nftsWithMetadata;
   const listedNFTs = nftsWithMetadata.filter(nftWithMetadata => {
     const nft = userNFTs.find(n => n.id === nftWithMetadata.id);
-    return nft?.isForSale;
+    return nft?.isListing;
   });
 
   return (
@@ -364,8 +350,8 @@ const MyNFTs: React.FC = () => {
                     onClick={() => handleNFTClick(nft)}
                     onList={handleListNFT}
                     onDelist={handleDelistNFT}
-                    showListButton={!nft.isForSale}
-                    showDelistButton={nft.isForSale}
+                    showListButton={!nft.isListing}
+                    showDelistButton={nft.isListing}
                   />
                 ))}
               </div>

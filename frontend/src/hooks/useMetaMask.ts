@@ -47,6 +47,13 @@ export const useMetaMask = () => {
               account: accounts[0],
               chainId: chainId,
             }));
+          } else {
+            setState(prev => ({
+              ...prev,
+              isConnected: false,
+              account: null,
+              chainId: chainId,
+            }));
           }
         } catch (error) {
           console.error('Error checking MetaMask connection:', error);
@@ -59,19 +66,8 @@ export const useMetaMask = () => {
     // Listen for account changes
     const handleAccountsChanged = (accounts: string[]) => {
       console.log('Accounts changed:', accounts);
-      if (accounts.length > 0) {
-        setState(prev => ({
-          ...prev,
-          isConnected: true,
-          account: accounts[0],
-        }));
-      } else {
-        setState(prev => ({
-          ...prev,
-          isConnected: false,
-          account: null,
-        }));
-      }
+      // Reload lại trang khi đổi account
+      window.location.reload();
     };
 
     // Listen for chain changes

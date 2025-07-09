@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { toast } from '@/hooks/use-toast';
 import { Upload, Palette, Image as ImageIcon } from 'lucide-react';
+import { ethers } from 'ethers';
 
 interface MintNFTFormProps {
   onMintSuccess?: (nftId: string) => void;
@@ -16,15 +17,31 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
     description: '',
     image: '',
     category: 'Art',
+    royaltyFee: BigInt(0), // in wei
   });
+  const [royaltyFeeETH, setRoyaltyFeeETH] = useState('0'); // for display in ETH
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [mintStep, setMintStep] = useState<'idle' | 'uploading' | 'minting'>('idle');
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'royaltyFee') {
+      // Convert ETH to wei
+      try {
+        const ethValue = parseFloat(value) || 0;
+        const weiValue = ethers.parseEther(ethValue.toString());
+        setFormData(prev => ({ ...prev, [name]: weiValue }));
+        setRoyaltyFeeETH(value);
+      } catch (error) {
+        console.error('Error converting ETH to wei:', error);
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,6 +92,7 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
     }
 
     setIsLoading(true);
+    setMintStep('uploading');
 
     try {
       toast({
@@ -90,12 +108,14 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
         attributes: [{ trait_type: "Category", value: formData.category }],
         creator: userAddress
       });
-
+      setMintStep('minting');
+      
       // Add to local NFT collection and get the new NFT ID
-      const newNFTId = await mintNFT(result.NFTCid);
+      const newNFTId = await mintNFT(result.NFTCid, formData.royaltyFee);
       
       // Reset form
-      setFormData({ name: '', description: '', image: '', category: 'Art' });
+      setFormData({ name: '', description: '', image: '', category: 'Art', royaltyFee: BigInt(0) });
+      setRoyaltyFeeETH('0');
       setImagePreview('');
       setUploadedFile(null);
       
@@ -113,6 +133,7 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
       });
     } finally {
       setIsLoading(false);
+      setMintStep('idle');
     }
   };
 
@@ -260,6 +281,30 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
             </select>
           </div>
 
+          <div>
+            <label htmlFor="royaltyFee" className="block text-sm font-medium text-gray-700 mb-2">
+              Royalty Fee (ETH) *
+            </label>
+            <input
+              type="number"
+              id="royaltyFee"
+              name="royaltyFee"
+              value={royaltyFeeETH}
+              onChange={handleInputChange}
+              placeholder="Enter royalty fee in ETH (e.g., 0.01 for 0.01 ETH)"
+              min="0"
+              step="0.001"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Royalty fee in ETH that will be paid to the creator on each sale
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Current value in wei: {formData.royaltyFee.toString()}
+            </p>
+          </div>
+
           {/* Image Upload Section */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -332,7 +377,11 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
             {isLoading ? (
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Uploading to IPFS...</span>
+                <span>
+                  {mintStep === 'uploading' && 'Uploading to IPFS...'}
+                  {mintStep === 'minting' && 'Minting...'}
+                  {mintStep === 'idle' && 'Mint NFT'}
+                </span>
               </div>
             ) : (
               <div className="flex items-center space-x-2">
