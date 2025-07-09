@@ -10,32 +10,32 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const NFTDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { nfts, userAddress, buyNFT, getNFTWithMetadata } = useNFT();
+  const { userAddress, buyNFT, getNFTInfo } = useNFT();
   const [isBuying, setIsBuying] = useState(false);
   const [nftWithMetadata, setNftWithMetadata] = useState<NFTWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const nft = nfts.find(n => n.id === id);
-
   useEffect(() => {
-    const loadMetadata = async () => {
-      if (nft) {
-        try {
-          setLoading(true);
-          const metadata = await getNFTWithMetadata(nft);
-          setNftWithMetadata(metadata);
-        } catch (error) {
-          console.error('Error loading NFT metadata:', error);
-        } finally {
-          setLoading(false);
-        }
-      } else {
+    const loadNFTData = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const nftData = await getNFTInfo(id);
+        setNftWithMetadata(nftData);
+      } catch (error) {
+        console.error('Error loading NFT data:', error);
+        setNftWithMetadata(null);
+      } finally {
         setLoading(false);
       }
     };
 
-    loadMetadata();
-  }, [nft, getNFTWithMetadata]);
+    loadNFTData();
+  }, [id, getNFTInfo]);
 
   if (loading) {
     return (
@@ -46,7 +46,7 @@ const NFTDetail: React.FC = () => {
     );
   }
 
-  if (!nft || !nftWithMetadata) {
+  if (!nftWithMetadata) {
     return (
       <div className="text-center py-12">
         <h1 className="text-2xl font-bold text-gray-800 mb-4">NFT Not Found</h1>
@@ -61,14 +61,14 @@ const NFTDetail: React.FC = () => {
     );
   }
 
-  const isOwner = nft.owner.toLowerCase() === userAddress.toLowerCase();
-  const canBuy = nft.isForSale && !isOwner;
+  const isOwner = nftWithMetadata.owner.toLowerCase() === userAddress.toLowerCase();
+  const canBuy = nftWithMetadata.isListing && !isOwner;
 
   const handleBuy = async () => {
     if (canBuy) {
       try {
         setIsBuying(true);
-        await buyNFT(nft.id);
+        await buyNFT(nftWithMetadata.id);
         navigate('/');
       } catch (error) {
         console.error('Error buying NFT:', error);
@@ -153,10 +153,10 @@ const NFTDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Owner</span>
                 </div>
                 <span className="text-sm font-mono flex items-center gap-1">
-                  {shortenAddress(nft.owner)}
+                  {shortenAddress(nftWithMetadata.owner)}
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(nft.owner);
+                      navigator.clipboard.writeText(nftWithMetadata.owner);
                       // @ts-ignore
                       if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Owner address copied.' });
                     }}
@@ -175,10 +175,10 @@ const NFTDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Creator</span>
                 </div>
                 <span className="text-sm font-mono flex items-center gap-1">
-                  {shortenAddress(nft.creator)}
+                  {shortenAddress(nftWithMetadata.creator)}
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(nft.creator);
+                      navigator.clipboard.writeText(nftWithMetadata.creator);
                       // @ts-ignore
                       if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Creator address copied.' });
                     }}
@@ -197,7 +197,7 @@ const NFTDetail: React.FC = () => {
                   <span className="text-sm text-gray-600">Created</span>
                 </div>
                 <span className="text-sm">
-                  {nft.createdAt.toLocaleDateString()}
+                  {nftWithMetadata.createdAt.toLocaleDateString()}
                 </span>
               </div>
 
@@ -206,13 +206,13 @@ const NFTDetail: React.FC = () => {
                   <Tag className="w-4 h-4 text-gray-500" />
                   <span className="text-sm text-gray-600">Token ID</span>
                 </div>
-                <span className="text-sm font-mono">#{nft.id}</span>
+                <span className="text-sm font-mono">#{nftWithMetadata.id}</span>
               </div>
             </CardContent>
           </Card>
 
           {/* Price and Buy Section */}
-          {nft.isForSale && (
+          {nftWithMetadata.isListing && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Price</CardTitle>
@@ -221,7 +221,7 @@ const NFTDetail: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Zap className="w-5 h-5 text-yellow-500" />
-                    <span className="text-2xl font-bold">{nft.price} ETH</span>
+                    <span className="text-2xl font-bold">{nftWithMetadata.price} ETH</span>
                   </div>
                 </div>
                 
@@ -245,7 +245,7 @@ const NFTDetail: React.FC = () => {
             </Card>
           )}
 
-          {!nft.isForSale && !isOwner && (
+          {!nftWithMetadata.isListing && !isOwner && (
             <Card>
               <CardContent className="py-6">
                 <Badge variant="secondary" className="w-full justify-center py-2">

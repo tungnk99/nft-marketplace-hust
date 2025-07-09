@@ -70,7 +70,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
             className="w-full h-64 object-cover"
           />
           <div className="absolute top-2 right-2 flex flex-col gap-1">
-            {nft.isForSale && (
+            {nft.isListing && (
               <Badge className="bg-green-500 hover:bg-green-600">
                 For Sale
               </Badge>
@@ -143,7 +143,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
           </div>
         </div>
         
-        {nft.isForSale && (
+        {nft.isListing && (
           <div className="flex items-center text-lg font-bold text-blue-600 mt-3">
             <Tag className="w-4 h-4 mr-1" />
             {nft.price} ETH
@@ -152,7 +152,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
       </CardContent>
       
       <CardFooter className="p-4 pt-0" onClick={(e) => e.stopPropagation()}>
-        {showBuyButton && nft.isForSale && (
+        {showBuyButton && nft.isListing && (
           <Button 
             onClick={handleBuy} 
             disabled={isLoading}
@@ -162,7 +162,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
           </Button>
         )}
         
-        {showDelistButton && nft.isForSale && (
+        {showDelistButton && nft.isListing && (
           <Button 
             onClick={handleDelist}
             variant="outline"
@@ -172,7 +172,7 @@ const NFTCard: React.FC<NFTCardProps> = ({
           </Button>
         )}
         
-        {showListButton && !nft.isForSale && (
+        {showListButton && !nft.isListing && (
           <div className="w-full">
             {!showListForm ? (
               <Button 

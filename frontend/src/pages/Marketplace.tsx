@@ -13,8 +13,7 @@ const ITEMS_PER_PAGE = 8;
 
 const Marketplace: React.FC = () => {
   const navigate = useNavigate();
-  const { nfts: allNfts, buyNFT, userAddress, getNFTWithMetadata } = useNFT();
-  const [marketplaceNfts, setMarketplaceNfts] = useState<NFT[]>([]);
+  const { buyNFT, userAddress, getMarketplaceNFTs, getNFTInfo } = useNFT();
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedNFT, setSelectedNFT] = useState<NFTWithMetadata | null>(null);
@@ -28,30 +27,35 @@ const Marketplace: React.FC = () => {
   });
 
   useEffect(() => {
-    console.log('Marketplace loading, all NFTs:', allNfts);
-    // Simulate loading
-    setTimeout(() => {
-      // Show ALL NFTs that are for sale (including user's own NFTs)
-      const forSaleNFTs = allNfts.filter(nft => nft.isForSale);
-      console.log('Marketplace NFTs (all listed):', forSaleNFTs);
-      setMarketplaceNfts(forSaleNFTs);
-      setLoading(false);
-    }, 1000);
-  }, [allNfts]);
-
-  // Load metadata for marketplace NFTs
-  useEffect(() => {
-    const loadMetadata = async () => {
-      const metadataPromises = marketplaceNfts.map(nft => getNFTWithMetadata(nft));
-      const results = await Promise.all(metadataPromises);
-      const validNFTs = results.filter((nft): nft is NFTWithMetadata => nft !== null);
-      setNftsWithMetadata(validNFTs);
+    const loadMarketplaceNFTs = async () => {
+      try {
+        setLoading(true);
+        const marketplaceNFTs = await getMarketplaceNFTs();
+        
+        // Load metadata for all marketplace NFTs
+        const nftsWithMetadataPromises = marketplaceNFTs.map(async (nft) => {
+          try {
+            const nftWithMetadata = await getNFTInfo(nft.id);
+            return nftWithMetadata;
+          } catch (error) {
+            console.error(`Error loading metadata for NFT ${nft.id}:`, error);
+            return null;
+          }
+        });
+        
+        const results = await Promise.all(nftsWithMetadataPromises);
+        const validNFTs = results.filter((nft): nft is NFTWithMetadata => nft !== null);
+        setNftsWithMetadata(validNFTs);
+      } catch (error) {
+        console.error('Error loading marketplace NFTs:', error);
+        setNftsWithMetadata([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    if (marketplaceNfts.length > 0) {
-      loadMetadata();
-    }
-  }, [marketplaceNfts, getNFTWithMetadata]);
+    loadMarketplaceNFTs();
+  }, [getMarketplaceNFTs, getNFTInfo]);
 
   const filteredAndSortedNFTs = useMemo(() => {
     let filtered = [...nftsWithMetadata];
@@ -125,8 +129,20 @@ const Marketplace: React.FC = () => {
     if (selectedNFT) {
       try {
         await buyNFT(selectedNFT.id);
-        // Update marketplace NFTs after purchase
-        setMarketplaceNfts(prev => prev.filter(nft => nft.id !== selectedNFT.id));
+        // Refresh marketplace NFTs after purchase
+        const updatedMarketplaceNFTs = await getMarketplaceNFTs();
+        const nftsWithMetadataPromises = updatedMarketplaceNFTs.map(async (nft) => {
+          try {
+            const nftWithMetadata = await getNFTInfo(nft.id);
+            return nftWithMetadata;
+          } catch (error) {
+            console.error(`Error loading metadata for NFT ${nft.id}:`, error);
+            return null;
+          }
+        });
+        const results = await Promise.all(nftsWithMetadataPromises);
+        const validNFTs = results.filter((nft): nft is NFTWithMetadata => nft !== null);
+        setNftsWithMetadata(validNFTs);
         toast({
           title: "NFT Purchased!",
           description: `You have successfully purchased ${selectedNFT.name}!`,

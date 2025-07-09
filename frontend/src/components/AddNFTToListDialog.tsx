@@ -23,7 +23,8 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
     if (!isOpen) return;
     const fetchMetadata = async () => {
       setLoading(true);
-      const unlistedNFTs = getUserNFTs().filter(nft => !nft.isForSale);
+      const userNFTs = await getUserNFTs();
+      const unlistedNFTs = userNFTs.filter(nft => !nft.isListing);
       const nftsWithMeta = await Promise.all(unlistedNFTs.map(nft => getNFTWithMetadata(nft)));
       setUnlistedNFTsWithMetadata(nftsWithMeta.filter(Boolean));
       setLoading(false);
