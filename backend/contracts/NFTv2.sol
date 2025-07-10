@@ -41,16 +41,16 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         return _marketplaceAddress;
     }
 
-    function setMarketplaceAddress(address marketplaceAddress) external onlyOwner {
-        require(marketplaceAddress != address(0), "Marketplace address cannot be zero");
-        _marketplaceAddress = marketplaceAddress;
+    // function setMarketplaceAddress(address marketplaceAddress) external onlyOwner {
+    //     require(marketplaceAddress != address(0), "Marketplace address cannot be zero");
+    //     _marketplaceAddress = marketplaceAddress;
 
-        for (uint256 i = 1; i <= _tokenIds; i++) {
-            if (_ownerOf(i) != address(0)) {
-                _approve(_marketplaceAddress, i, address(0));
-            }
-        }
-    }
+    //     for (uint256 i = 1; i <= _tokenIds; i++) {
+    //         if (_ownerOf(i) != address(0)) {
+    //             _approve(_marketplaceAddress, i, address(0));
+    //         }
+    //     }
+    // }
 
     function mint(string memory tokenURI, uint256 royaltyFee) external returns (uint256) {
         require(royaltyFee >= 0, "Royalty must be non-negative");
@@ -71,8 +71,8 @@ contract NFTv2 is ERC721URIStorage, Ownable {
             mintedAt: block.timestamp
         });
 
-        if (msg.sender != _marketplaceAddress) {
-            approve(_marketplaceAddress, newItemId);
+        if (!isApprovedForAll(msg.sender, _marketplaceAddress)) {
+            setApprovalForAll(_marketplaceAddress, true);
         }
 
         emit NFTMinted(msg.sender, newItemId, tokenURI, block.timestamp);
