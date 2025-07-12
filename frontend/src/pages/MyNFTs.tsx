@@ -10,6 +10,7 @@ import MintNFTForm from '../components/MintNFTForm';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import WalletConnect from '../components/WalletConnect';
 import { useMetaMask } from '../hooks/useMetaMask';
 
@@ -31,6 +32,18 @@ const MyNFTs: React.FC = () => {
     listingStatus: 'all'
   });
   const { isConnected, account } = useMetaMask();
+
+  // Function to refresh user NFTs from blockchain
+  const refreshUserNFTs = async () => {
+    try {
+      const updatedNFTs = await getUserNFTs();
+      setUserNFTs(updatedNFTs);
+      const metas = await Promise.all(updatedNFTs.map(async nft => await getNFTWithMetadata(nft)));
+      setNftsWithMetadata(metas.filter(Boolean));
+    } catch (error) {
+      console.error('❌ Error refreshing user NFTs:', error);
+    }
+  };
 
   // Load user NFTs from blockchain
   useEffect(() => {
@@ -151,7 +164,8 @@ const MyNFTs: React.FC = () => {
     } else if (activeTab === 'listed') {
       baseNFTs = nftsWithMetadata.filter(nftWithMetadata => {
         const nft = userNFTs.find(n => n.id === nftWithMetadata.id);
-        return nft?.isListing;
+        const isActuallyListing = nft?.isListing || false;
+        return isActuallyListing;
       });
     } else {
       return []; // mint tab doesn't need NFTs
@@ -202,14 +216,10 @@ const MyNFTs: React.FC = () => {
   };
 
   const handleListNFT = async (id: string, price: number) => {
-    console.log('Listing NFT:', id, 'for price:', price);
     try {
       await listNFT(id, price);
       // Reload user NFTs from blockchain
-      const updatedNFTs = await getUserNFTs();
-      setUserNFTs(updatedNFTs);
-      const metas = await Promise.all(updatedNFTs.map(async nft => await getNFTWithMetadata(nft)));
-      setNftsWithMetadata(metas.filter(Boolean));
+      await refreshUserNFTs();
       toast({
         title: "NFT Listed!",
         description: `Your NFT is now listed for sale at ${price} ETH and visible on the marketplace.`,
@@ -225,14 +235,10 @@ const MyNFTs: React.FC = () => {
   };
 
   const handleDelistNFT = async (id: string) => {
-    console.log('Delisting NFT:', id);
     try {
       await delistNFT(id);
       // Reload user NFTs from blockchain
-      const updatedNFTs = await getUserNFTs();
-      setUserNFTs(updatedNFTs);
-      const metas = await Promise.all(updatedNFTs.map(async nft => await getNFTWithMetadata(nft)));
-      setNftsWithMetadata(metas.filter(Boolean));
+      await refreshUserNFTs();
       toast({
         title: "NFT Delisted!",
         description: "Your NFT has been removed from the marketplace.",
@@ -248,7 +254,6 @@ const MyNFTs: React.FC = () => {
   };
 
   const handleMintSuccess = async (newNFTId: string) => {
-    console.log('Mint success - new NFT ID:', newNFTId);
     
     // Navigate ngay lập tức sang trang detail của NFT mới
     navigate(`/nft/${newNFTId}`);
@@ -282,7 +287,8 @@ const MyNFTs: React.FC = () => {
   const collectionNFTs = activeTab === 'collection' ? getDisplayNFTs : nftsWithMetadata;
   const listedNFTs = nftsWithMetadata.filter(nftWithMetadata => {
     const nft = userNFTs.find(n => n.id === nftWithMetadata.id);
-    return nft?.isListing;
+    const isActuallyListing = nft?.isListing || false;
+    return isActuallyListing;
   });
 
   return (
@@ -343,17 +349,24 @@ const MyNFTs: React.FC = () => {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {currentNFTs.map((nft) => (
-                  <NFTCard
-                    key={nft.id}
-                    nft={nft}
-                    onClick={() => handleNFTClick(nft)}
-                    onList={handleListNFT}
-                    onDelist={handleDelistNFT}
-                    showListButton={!nft.isListing}
-                    showDelistButton={nft.isListing}
-                  />
-                ))}
+                {currentNFTs.map((nft) => {
+                  // Find the corresponding blockchain NFT data
+                  const blockchainNFT = userNFTs.find(n => n.id === nft.id);
+                  const isActuallyListing = blockchainNFT?.isListing || false;
+                  
+                  return (
+                    <NFTCard
+                      key={nft.id}
+                      nft={nft}
+                      onClick={() => handleNFTClick(nft)}
+                      onList={handleListNFT}
+                      onDelist={handleDelistNFT}
+                      showListButton={!isActuallyListing}
+                      showDelistButton={isActuallyListing}
+                      showStatusBadge={true} // Show status badge in collection view
+                    />
+                  );
+                })}
               </div>
 
               {totalPages > 1 && (
@@ -414,6 +427,7 @@ const MyNFTs: React.FC = () => {
                     onClick={() => handleNFTClick(nft)}
                     onDelist={handleDelistNFT}
                     showDelistButton={true}
+                    showStatusBadge={true} // Show status badge in listed view
                   />
                 ))}
               </div>

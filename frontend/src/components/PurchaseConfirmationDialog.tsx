@@ -13,12 +13,12 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useMetaMask } from '../hooks/useMetaMask';
 import { toast } from '@/hooks/use-toast';
-import { NFT } from '../contexts/NFTContext';
+import { NFTWithMetadata } from '../contexts/NFTContext';
 
 interface PurchaseConfirmationDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  nft: NFT | null;
+  nft: NFTWithMetadata | null;
   onConfirm: () => void;
 }
 
@@ -69,15 +69,16 @@ const PurchaseConfirmationDialog: React.FC<PurchaseConfirmationDialogProps> = ({
         description: "Vui lòng xác nhận giao dịch trong MetaMask...",
       });
       
-      // Simulate MetaMask transaction signing
-      setTimeout(() => {
-        onConfirm();
-        onClose();
-        toast({
-          title: "Mua thành công!",
-          description: "NFT đã được chuyển vào ví của bạn.",
-        });
-      }, 2000);
+      // Gọi onConfirm để thực hiện transaction thực tế
+      await onConfirm();
+      
+      // Chỉ hiển thị thông báo thành công sau khi transaction hoàn thành
+      toast({
+        title: "Mua thành công!",
+        description: "NFT đã được chuyển vào ví của bạn.",
+      });
+      
+      onClose();
     } catch (error) {
       toast({
         title: "Giao dịch thất bại",
@@ -93,7 +94,7 @@ const PurchaseConfirmationDialog: React.FC<PurchaseConfirmationDialogProps> = ({
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle>Xác nhận mua hàng</AlertDialogTitle>
+          <AlertDialogTitle>Xác nhận mua</AlertDialogTitle>
           <AlertDialogDescription className="space-y-4">
             <div className="text-center">
               <img
@@ -104,7 +105,6 @@ const PurchaseConfirmationDialog: React.FC<PurchaseConfirmationDialogProps> = ({
               <h3 className="font-semibold text-lg text-gray-800">{nft.name}</h3>
               <div className="flex justify-center gap-2 mt-2">
                 <Badge variant="outline">{nft.category}</Badge>
-                <Badge variant="secondary">{nft.rarity}</Badge>
               </div>
             </div>
             
@@ -112,10 +112,6 @@ const PurchaseConfirmationDialog: React.FC<PurchaseConfirmationDialogProps> = ({
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-gray-600">Giá:</span>
                 <span className="font-bold text-lg">{nft.price} ETH</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Mạng:</span>
-                <span className="text-sm">{nft.blockchain}</span>
               </div>
             </div>
 

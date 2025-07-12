@@ -3,7 +3,8 @@ import { NFT, NFTWithMetadata } from '../contexts/NFTContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card';
-import { Wallet, Tag, User, Calendar, Copy } from 'lucide-react';
+import { Wallet, Tag, User, Calendar, Copy, Percent, Hash } from 'lucide-react';
+import { formatRoyaltyFee } from '../lib/utils';
 
 interface NFTCardProps {
   nft: NFTWithMetadata;
@@ -14,6 +15,7 @@ interface NFTCardProps {
   showBuyButton?: boolean;
   showListButton?: boolean;
   showDelistButton?: boolean;
+  showStatusBadge?: boolean; // New prop to control status badge display
 }
 
 const NFTCard: React.FC<NFTCardProps> = ({ 
@@ -24,7 +26,8 @@ const NFTCard: React.FC<NFTCardProps> = ({
   onDelist,
   showBuyButton = false, 
   showListButton = false,
-  showDelistButton = false
+  showDelistButton = false,
+  showStatusBadge = true // Default to true for marketplace view
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [listPrice, setListPrice] = useState('');
@@ -69,13 +72,20 @@ const NFTCard: React.FC<NFTCardProps> = ({
             alt={nft.name}
             className="w-full h-64 object-cover"
           />
-          <div className="absolute top-2 right-2 flex flex-col gap-1">
-            {nft.isListing && (
-              <Badge className="bg-green-500 hover:bg-green-600">
-                For Sale
-              </Badge>
-            )}
-          </div>
+          {showStatusBadge && (
+            <div className="absolute top-2 right-2 flex flex-col gap-1">
+              {nft.isListing && (
+                <Badge className="bg-green-500 hover:bg-green-600">
+                  Listed
+                </Badge>
+              )}
+              {!nft.isListing && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+                  Not Listed
+                </Badge>
+              )}
+            </div>
+          )}
           <div className="absolute top-2 left-2">
             <Badge variant="secondary" className="text-xs">
               {nft.category}
@@ -140,6 +150,30 @@ const NFTCard: React.FC<NFTCardProps> = ({
             <Calendar className="w-3 h-3 mr-1" />
             <span className="mr-2">Created:</span>
             <span>{nft.createdAt.toLocaleDateString()}</span>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <Percent className="w-3 h-3 mr-1" />
+            <span className="mr-2">Royalty:</span>
+            <span className="font-medium">{formatRoyaltyFee(nft.royaltyFee)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Hash className="w-3 h-3 mr-1" />
+            <span className="mr-2">Token ID:</span>
+            <span className="font-mono">#{nft.id}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(nft.id);
+                // @ts-ignore
+                if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Token ID copied.' });
+              }}
+              className="hover:text-blue-600"
+              title="Copy Token ID"
+              type="button"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
           </div>
         </div>
         

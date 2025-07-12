@@ -4,8 +4,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Plus, Copy } from 'lucide-react';
+import { Plus, Copy, Percent, Hash } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { User } from 'lucide-react';
+import { formatRoyaltyFee } from '../lib/utils';
 
 interface AddNFTToListDialogProps {
   onNFTListed: (id: string, price: number) => void;
@@ -130,6 +134,24 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
                             }}
                             className="hover:text-blue-600"
                             title="Copy creator address"
+                            type="button"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Hash className="w-3 h-3 mr-1" />
+                          <span className="mr-2">Token ID:</span>
+                          <span className="font-mono">#{nft.id}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(nft.id);
+                              // @ts-ignore
+                              if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Token ID copied.' });
+                            }}
+                            className="hover:text-blue-600"
+                            title="Copy Token ID"
                             type="button"
                           >
                             <Copy className="w-3 h-3" />

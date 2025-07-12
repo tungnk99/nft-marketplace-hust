@@ -143,6 +143,8 @@ const Marketplace: React.FC = () => {
         const results = await Promise.all(nftsWithMetadataPromises);
         const validNFTs = results.filter((nft): nft is NFTWithMetadata => nft !== null);
         setNftsWithMetadata(validNFTs);
+        
+        // Thông báo thành công chỉ hiển thị sau khi transaction hoàn thành
         toast({
           title: "NFT Purchased!",
           description: `You have successfully purchased ${selectedNFT.name}!`,
@@ -154,6 +156,7 @@ const Marketplace: React.FC = () => {
           description: "Failed to purchase NFT. Please try again.",
           variant: "destructive"
         });
+        throw error; // Re-throw để PurchaseConfirmationDialog có thể catch
       }
     }
   };
@@ -215,6 +218,7 @@ const Marketplace: React.FC = () => {
                 onClick={() => handleNFTClick(nft)}
                 onBuy={() => handleBuyClick(nft)}
                 showBuyButton={!userAddress || nft.owner.toLowerCase() !== userAddress.toLowerCase()}
+                showStatusBadge={false} // Don't show status badge on marketplace since all NFTs are listed
               />
             ))}
           </div>

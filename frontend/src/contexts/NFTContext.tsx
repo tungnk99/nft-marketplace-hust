@@ -11,7 +11,7 @@ export interface NFT {
   creator: string;
   isListing: boolean;
   createdAt: Date;
-  royaltyFee: bigint; // Royalty fee in wei (smallest unit of ETH)
+  royaltyFee: number; // Royalty fee in percentage (0-100)
 }
 
 // Extended NFT interface with metadata loaded from IPFS
@@ -30,14 +30,13 @@ interface NFTContextType {
   loading: boolean;
   userAddress: string;
   buyNFT: (id: string) => Promise<void>;
-  mintNFT: (cid: string, royaltyFee?: bigint) => Promise<string>;
+  mintNFT: (cid: string, royaltyFee?: number) => Promise<string>;
   listNFT: (id: string, price: number) => Promise<void>;
   delistNFT: (id: string) => Promise<void>;
   getUserNFTs: () => Promise<NFT[]>;
   getMarketplaceNFTs: () => Promise<NFT[]>;
   getNFTWithMetadata: (nft: NFT) => Promise<NFTWithMetadata | null>;
   getNFTInfo: (nftId: string) => Promise<NFTWithMetadata>;
-  isMetadataLoading: (cid: string) => boolean;
   isNFTListed: (nftId: string) => Promise<boolean>;
 }
 
@@ -45,25 +44,18 @@ const NFTContext = createContext<NFTContextType | undefined>(undefined);
 
 export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(false);
-  const [metadataCache, setMetadataCache] = useState<Map<string, NFTMetadata>>(new Map());
-  const [metadataLoading, setMetadataLoading] = useState<Set<string>>(new Set());
   
   // Get MetaMask state
   const { account, isConnected } = useMetaMask();
   const userAddress = account || null;
 
   const buyNFT = useCallback(async (id: string) => {
-    try {
-      console.log('Buying NFT with user address:', userAddress);
-      
+    try {      
       // Call blockchain service to buy NFT
       const success = await blockchainService.buyNFT(id);
       
       if (success) {
-        // Load metadata for the updated NFT
-        const updatedNFT = await blockchainService.getNFTInfo(id);
-        const metadata = await IPFSMetadataService.fetchMetadata(updatedNFT.cid);
-        setMetadataCache(prev => new Map(prev).set(updatedNFT.cid, metadata));
+        console.log('NFT bought successfully, no cache update needed');
       }
     } catch (error) {
       console.error('Error buying NFT:', error);
@@ -71,23 +63,12 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [userAddress]);
 
-  const mintNFT = useCallback(async (cid: string, royaltyFee: bigint = BigInt(0)): Promise<string> => {
-    console.log('Minting NFT with user address:', userAddress);
-    
+  const mintNFT = useCallback(async (cid: string, royaltyFee: number = 0): Promise<string> => {    
     try {
-      // TODO
       // Call blockchain service to mint NFT
       const nftId = await blockchainService.mintNFT(cid, royaltyFee);
       
-      // Load metadata for the new NFT
-      try {
-        console.log('Loading metadata for new NFT with CID:', cid);
-        const metadata = await IPFSMetadataService.fetchMetadata(cid);
-        setMetadataCache(prev => new Map(prev).set(cid, metadata));
-        console.log('Metadata loaded successfully for new NFT');
-      } catch (error) {
-        console.error('Error loading metadata for new NFT:', error);
-      }
+      console.log('NFT minted successfully, no cache update needed');
       
       return nftId; // Trả về ID của NFT mới
     } catch (error) {
@@ -102,10 +83,7 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const success = await blockchainService.listNFT(id, price);
       
       if (success) {
-        // Load metadata for the updated NFT
-        const updatedNFT = await blockchainService.getNFTInfo(id);
-        const metadata = await IPFSMetadataService.fetchMetadata(updatedNFT.cid);
-        setMetadataCache(prev => new Map(prev).set(updatedNFT.cid, metadata));
+        console.log('NFT listed successfully, no cache update needed');
       }
     } catch (error) {
       console.error('Error listing NFT for sale:', error);
@@ -119,10 +97,7 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const success = await blockchainService.delistNFT(id);
       
       if (success) {
-        // Load metadata for the updated NFT
-        const updatedNFT = await blockchainService.getNFTInfo(id);
-        const metadata = await IPFSMetadataService.fetchMetadata(updatedNFT.cid);
-        setMetadataCache(prev => new Map(prev).set(updatedNFT.cid, metadata));
+        console.log('NFT delisted successfully, no cache update needed');
       }
     } catch (error) {
       console.error('Error delisting NFT:', error);
@@ -150,48 +125,28 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const getNFTWithMetadata = useCallback(async (nft: NFT): Promise<NFTWithMetadata | null> => {
-    // Check cache first
-    let metadata = metadataCache.get(nft.cid);
     
-    // If not in cache and not currently loading, try to fetch it
-    if (!metadata && !metadataLoading.has(nft.cid)) {
-      try {
-        // Mark as loading
-        setMetadataLoading(prev => new Set(prev).add(nft.cid));
-        console.log(`Fetching metadata for CID: ${nft.cid}`);
-        
-        const fetchedMetadata = await IPFSMetadataService.fetchMetadata(nft.cid);
-        
-        // Update cache
-        setMetadataCache(prev => new Map(prev).set(nft.cid, fetchedMetadata));
-        metadata = fetchedMetadata;
-      } catch (error) {
-        console.error(`Failed to fetch metadata for CID ${nft.cid}:`, error);
-        return null; // Return null only if fetch fails
-      } finally {
-        // Remove from loading set
-        setMetadataLoading(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(nft.cid);
-          return newSet;
-        });
-      }
+    try {
+      
+      const metadata = await IPFSMetadataService.fetchMetadata(nft.cid);
+      
+      const result = {
+        ...nft,
+        name: metadata.name,
+        description: metadata.description,
+        image: metadata.image,
+        category: metadata.category,
+        attributes: metadata.attributes,
+      };
+      
+      console.log(`✅ NFT with fresh metadata created for token ${nft.id}:`, result);
+      
+      return result;
+    } catch (error) {
+      console.error(`Failed to fetch metadata for CID ${nft.cid}:`, error);
+      return null;
     }
-    
-    // Return combined NFT with metadata
-    if (!metadata) {
-      return null; // Return null if metadata is still not available
-    }
-    
-    return {
-      ...nft,
-      name: metadata.name,
-      description: metadata.description,
-      image: metadata.image,
-      category: metadata.category,
-      attributes: metadata.attributes,
-    };
-  }, [metadataCache, metadataLoading]);
+  }, []);
 
   const getNFTInfo = useCallback(async (nftId: string): Promise<NFTWithMetadata> => {
     const nft = await blockchainService.getNFTInfo(nftId);
@@ -206,10 +161,6 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return await blockchainService.isNFTListed(nftId);
   }, []);
 
-  const isMetadataLoading = useCallback((cid: string): boolean => {
-    return metadataLoading.has(cid);
-  }, [metadataLoading]);
-
   return (
     <NFTContext.Provider value={{
       loading,
@@ -222,7 +173,6 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       getMarketplaceNFTs,
       getNFTWithMetadata,
       getNFTInfo,
-      isMetadataLoading,
       isNFTListed,
     }}>
       {children}

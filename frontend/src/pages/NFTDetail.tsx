@@ -4,8 +4,10 @@ import { useNFT, NFTWithMetadata } from '../contexts/NFTContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, Calendar, User, Tag, Zap, Copy } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Tag, Zap, Copy, Percent } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatRoyaltyFee } from '../lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 const NFTDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -69,9 +71,21 @@ const NFTDetail: React.FC = () => {
       try {
         setIsBuying(true);
         await buyNFT(nftWithMetadata.id);
+        
+        // Thông báo thành công chỉ hiển thị sau khi transaction hoàn thành
+        toast({
+          title: "NFT Purchased!",
+          description: `You have successfully purchased ${nftWithMetadata.name}!`,
+        });
+        
         navigate('/');
       } catch (error) {
         console.error('Error buying NFT:', error);
+        toast({
+          title: "Error Purchasing NFT",
+          description: "Failed to purchase NFT. Please try again.",
+          variant: "destructive"
+        });
       } finally {
         setIsBuying(false);
       }
@@ -206,7 +220,29 @@ const NFTDetail: React.FC = () => {
                   <Tag className="w-4 h-4 text-gray-500" />
                   <span className="text-sm text-gray-600">Token ID</span>
                 </div>
-                <span className="text-sm font-mono">#{nftWithMetadata.id}</span>
+                <span className="text-sm font-mono flex items-center gap-1">
+                  #{nftWithMetadata.id}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(nftWithMetadata.id);
+                      // @ts-ignore
+                      if (typeof toast === 'function') toast({ title: 'Copied!', description: 'Token ID copied.' });
+                    }}
+                    className="hover:text-blue-600"
+                    title="Copy Token ID"
+                    type="button"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Percent className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Royalty Fee</span>
+                </div>
+                <span className="text-sm font-medium">{formatRoyaltyFee(nftWithMetadata.royaltyFee)}</span>
               </div>
             </CardContent>
           </Card>

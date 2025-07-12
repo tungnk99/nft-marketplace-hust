@@ -32,14 +32,12 @@ export class IPFSMetadataService {
             'Accept': 'application/json',
           },
         });
-        console.log(`IPFS cid ${cid} response status: ${response.status}`);
         if (!response.ok) {
           throw new Error(`Gateway ${gateway} failed: ${response.statusText}`);
         }
 
         const metadata: NFTMetadata = await response.json();
-        console.log(`IPFS cid ${cid} raw metadata:`, metadata);
-        console.log(`IPFS cid ${cid} has name: ${!!metadata.name}, description: ${!!metadata.description}, image: ${!!metadata.image}, category: ${!!metadata.category}`);
+        // console.log(`IPFS cid ${cid} raw metadata:`, metadata);
         
         // Validate required fields
         if (!metadata.name || !metadata.description || !metadata.image) {
@@ -60,8 +58,6 @@ export class IPFSMetadataService {
           metadata.category = 'Unknown';
         }
 
-        console.log(`IPFS cid ${cid} processed metadata:`, metadata);
-        console.log(`Successfully fetched metadata from ${gateway}`);
         return metadata;
       } catch (error) {
         console.warn(`Failed to fetch from ${gateway}:`, error);

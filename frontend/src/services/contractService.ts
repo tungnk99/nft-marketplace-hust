@@ -60,21 +60,28 @@ export class BlockchainService {
   /*
     Mint NFT. cid is the IPFS CID of the NFT.
     cid: string
-    royaltyFee: bigint (in wei)
+    royaltyFee: number (percentage, 0-100)
     Returns: string (NFT ID)
   */
-  public async mintNFT(cid: string, royaltyFee: bigint): Promise<string> {
+  public async mintNFT(cid: string, royaltyFee: number): Promise<string> {
     try {
       if (!this.signer) {
         await this.initializeContracts();
       }
 
-      // Convert wei to basis points (assuming 1 ETH = 10000 basis points for royalty)
-      // This is a simplified conversion - you might want to adjust based on your smart contract logic
-      const royaltyBasisPoints = Number(royaltyFee) / (10 ** 14); // Convert wei to basis points
+      // Validate royalty fee (0-100%)
+      if (royaltyFee < 0 || royaltyFee > 100) {
+        throw new Error('Royalty fee must be between 0% and 100%');
+      }
+
+      console.log('Minting NFT with:', {
+        cid,
+        royaltyFee: royaltyFee,
+        royaltyPercentage: royaltyFee
+      });
       
-      // Call mint function on smart contract
-      const tx = await this.nftContract.mint(cid, royaltyBasisPoints);
+      // Call mint function on smart contract with percentage value
+      const tx = await this.nftContract.mint(cid, royaltyFee);
       const receipt = await tx.wait();
       
       // Get the minted token ID from the event
@@ -95,35 +102,6 @@ export class BlockchainService {
       throw new Error('Failed to get minted token ID');
     } catch (error) {
       console.error('Error minting NFT:', error);
-      throw error;
-    }
-  }
-
-  /*
-    Get NFT by id.
-    nftId: string
-    Returns: NFT
-  */
-  public async getNFTById(nftId: string): Promise<NFT> {
-    try {
-      if (!this.signer) {
-        await this.initializeContracts();
-      }
-
-      const tokenInfo = await this.nftContract.getTokenInfoById(nftId);
-      
-      return {
-        id: nftId,
-        price: 0, // Price is managed by marketplace
-        owner: tokenInfo.owner,
-        creator: tokenInfo.creator,
-        isListing: false, // Will be updated by marketplace data
-        createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
-        royaltyFee: BigInt(tokenInfo.royaltyFee), // Keep as wei
-        cid: tokenInfo.tokenURI, // Assuming tokenURI is the CID
-      };
-    } catch (error) {
-      console.error('Error getting NFT by ID:', error);
       throw error;
     }
   }
@@ -254,12 +232,14 @@ export class BlockchainService {
     Returns: NFT[]
   */
   public async getNFTsFromMarketplace(): Promise<NFT[]> {
+    
     try {
       if (!this.signer) {
         await this.initializeContracts();
       }
 
       const listings = await this.marketplaceContract.getAllListings();
+      
       const nfts: NFT[] = [];
 
       for (const listing of listings) {
@@ -268,25 +248,33 @@ export class BlockchainService {
           try {
             const tokenInfo = await this.nftContract.getTokenInfoById(listing.tokenId.toString());
             
-            nfts.push({
+            const nft = {
               id: listing.tokenId.toString(),
               price: Number(ethers.formatEther(listing.price)),
               owner: tokenInfo.owner,
               creator: tokenInfo.creator,
               isListing: true,
               createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
-              royaltyFee: BigInt(tokenInfo.royaltyFee),
+              royaltyFee: Number(tokenInfo.royaltyFee),
               cid: tokenInfo.tokenURI,
-            });
+            };
+            
+            
+            nfts.push(nft);
           } catch (error) {
-            console.error(`Error getting token info for ${listing.tokenId}:`, error);
+            console.error(`❌ Error getting token info for ${listing.tokenId}:`, error);
           }
+        } else {
+          console.log(`⏭️ Skipping inactive listing for token ${listing.tokenId}:`, {
+            canceledAt: listing.canceledAt,
+            soldAt: listing.soldAt
+          });
         }
       }
 
       return nfts;
     } catch (error) {
-      console.error('Error getting NFTs from marketplace:', error);
+      console.error('❌ Error getting NFTs from marketplace:', error);
       throw error;
     }
   }
@@ -297,12 +285,14 @@ export class BlockchainService {
     Returns: NFT[]
   */
   public async getNFTsFromUser(userAddress: string): Promise<NFT[]> {
+    
     try {
       if (!this.signer) {
         await this.initializeContracts();
       }
 
       const tokenInfos = await this.nftContract.getTokenInfoByOwner(userAddress);
+      
       const nfts: NFT[] = [];
 
       for (const tokenInfo of tokenInfos) {
@@ -312,28 +302,41 @@ export class BlockchainService {
             contractAddresses.NFTv2,
             tokenInfo.tokenId.toString()
           );
-
-          const isListing = listing && listing.seller !== ethers.ZeroAddress && 
-                           listing.canceledAt === 0n && listing.soldAt === 0n;
-
-          nfts.push({
+          const isListing = listing && 
+                           listing.seller !== ethers.ZeroAddress && 
+                           (listing.canceledAt === 0 || listing.canceledAt === 0n || listing.canceledAt === null || listing.canceledAt === undefined) &&
+                           (listing.soldAt === 0 || listing.soldAt === 0n || listing.soldAt === null || listing.soldAt === undefined);
+          
+          const nft = {
             id: tokenInfo.tokenId.toString(),
             price: isListing ? Number(ethers.formatEther(listing.price)) : 0,
             owner: tokenInfo.owner,
             creator: tokenInfo.creator,
             isListing,
             createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
-            royaltyFee: BigInt(tokenInfo.royaltyFee),
+            royaltyFee: Number(tokenInfo.royaltyFee),
             cid: tokenInfo.tokenURI,
-          });
+          };
+          
+          // Validation: If NFT is listed, ensure it has valid listing data
+          if (isListing) {
+            if (!listing || listing.seller === ethers.ZeroAddress) {
+              console.warn(`⚠️ NFT ${nft.id} marked as listed but has invalid seller data`);
+            }
+            if (nft.price <= 0) {
+              console.warn(`⚠️ NFT ${nft.id} marked as listed but has invalid price: ${nft.price}`);
+            }
+          }
+          
+          nfts.push(nft);
         } catch (error) {
-          console.error(`Error processing token ${tokenInfo.tokenId}:`, error);
+          console.error(`❌ Error processing token ${tokenInfo.tokenId}:`, error);
         }
       }
 
       return nfts;
     } catch (error) {
-      console.error('Error getting NFTs from user:', error);
+      console.error('❌ Error getting NFTs from user:', error);
       throw error;
     }
   }
@@ -345,6 +348,7 @@ export class BlockchainService {
     canceledAt: number;
     soldAt: number;
   }> {
+    
     try {
       if (!this.signer) {
         await this.initializeContracts();
@@ -355,26 +359,32 @@ export class BlockchainService {
       );
       
       // Check if listing exists and is active
-      const isListed = listing && listing.seller !== ethers.ZeroAddress && 
-                      listing.canceledAt === 0n && listing.soldAt === 0n;
+      const isListed = listing && 
+                      listing.seller !== ethers.ZeroAddress && 
+                      (listing.canceledAt === 0 || listing.canceledAt === 0n || listing.canceledAt === null || listing.canceledAt === undefined) &&
+                      (listing.soldAt === 0 || listing.soldAt === 0n || listing.soldAt === null || listing.soldAt === undefined);
       
-      return {
+      const result = {
         isListed,
         price: isListed ? Number(ethers.formatEther(listing.price)) : 0,
         seller: listing?.seller || ethers.ZeroAddress,
         canceledAt: Number(listing?.canceledAt || 0n),
         soldAt: Number(listing?.soldAt || 0n),
       };
+
+      return result;
     } catch (error) {
-      console.error('Error getting listing info:', error);
+      console.error(`❌ Error getting listing info for token ${nftId}:`, error);
       // Return default values if listing doesn't exist
-      return {
+      const defaultResult = {
         isListed: false,
         price: 0,
         seller: ethers.ZeroAddress,
         canceledAt: 0,
         soldAt: 0,
       };
+      
+      return defaultResult;
     }
   }
 
@@ -384,18 +394,22 @@ export class BlockchainService {
     Returns: NFT
   */
   public async getNFTInfo(nftId: string): Promise<NFT> {
+    
     const tokenInfo = await this.nftContract.getTokenInfoById(nftId);
     const listingInfo = await this.getListingInfo(nftId);
-    return {
+    
+    const nft = {
       id: tokenInfo.tokenId.toString(),
       price: listingInfo.price,
       owner: tokenInfo.owner,
       creator: tokenInfo.creator,
       isListing: listingInfo.isListed,
       createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
-      royaltyFee: BigInt(tokenInfo.royaltyFee),
+      royaltyFee: Number(tokenInfo.royaltyFee),
       cid: tokenInfo.tokenURI,
-    }
+    };
+    
+    return nft;
   }
 
   /*
@@ -404,14 +418,23 @@ export class BlockchainService {
     Returns: boolean, true if listed, false if not
   */
   public async isNFTListed(nftId: string): Promise<boolean> {
+    
     try {
       const listing = await this.marketplaceContract.getListingById(
         contractAddresses.NFTv2,
         nftId
       );
-      return listing && listing.seller !== ethers.ZeroAddress && listing.canceledAt === 0n && listing.soldAt === 0n;
+      const isListed = listing && 
+                      listing.seller !== ethers.ZeroAddress && 
+                      (listing.canceledAt === 0 || listing.canceledAt === 0n || listing.canceledAt === null || listing.canceledAt === undefined) &&
+                      (listing.soldAt === 0 || listing.soldAt === 0n || listing.soldAt === null || listing.soldAt === undefined);
+
+      
+      return isListed;
     } catch (error) {
+      console.error(`❌ Error checking listing status for NFT ${nftId}:`, error);
       // Nếu lỗi (ví dụ: chưa từng được list), trả về false
+      console.log(`📋 NFT ${nftId} not listed (error occurred)`);
       return false;
     }
   }

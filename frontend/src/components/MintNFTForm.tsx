@@ -17,9 +17,8 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
     description: '',
     image: '',
     category: 'Art',
-    royaltyFee: BigInt(0), // in wei
+    royaltyFee: 0, // Store as percentage (0-100)
   });
-  const [royaltyFeeETH, setRoyaltyFeeETH] = useState('0'); // for display in ETH
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -30,14 +29,23 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
     const { name, value } = e.target;
     
     if (name === 'royaltyFee') {
-      // Convert ETH to wei
+      // Store percentage value directly
       try {
-        const ethValue = parseFloat(value) || 0;
-        const weiValue = ethers.parseEther(ethValue.toString());
-        setFormData(prev => ({ ...prev, [name]: weiValue }));
-        setRoyaltyFeeETH(value);
+        const percentageValue = parseFloat(value) || 0;
+        
+        // Validate percentage range (0-100%)
+        if (percentageValue < 0 || percentageValue > 100) {
+          toast({
+            title: "Invalid Royalty Fee",
+            description: "Royalty fee must be between 0% and 100%.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        setFormData(prev => ({ ...prev, [name]: percentageValue }));
       } catch (error) {
-        console.error('Error converting ETH to wei:', error);
+        console.error('Error parsing royalty fee:', error);
       }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -91,6 +99,16 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
       return;
     }
 
+    // Validate royalty fee before minting
+    if (formData.royaltyFee < 0 || formData.royaltyFee > 100) {
+      toast({
+        title: "Invalid Royalty Fee",
+        description: "Royalty fee must be between 0% and 100%.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     setMintStep('uploading');
 
@@ -110,12 +128,15 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
       });
       setMintStep('minting');
       
+      console.log('Submitting mint with royalty fee:', {
+        percentage: formData.royaltyFee
+      });
+      
       // Add to local NFT collection and get the new NFT ID
       const newNFTId = await mintNFT(result.NFTCid, formData.royaltyFee);
       
       // Reset form
-      setFormData({ name: '', description: '', image: '', category: 'Art', royaltyFee: BigInt(0) });
-      setRoyaltyFeeETH('0');
+      setFormData({ name: '', description: '', image: '', category: 'Art', royaltyFee: 0 });
       setImagePreview('');
       setUploadedFile(null);
       
@@ -283,25 +304,23 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
 
           <div>
             <label htmlFor="royaltyFee" className="block text-sm font-medium text-gray-700 mb-2">
-              Royalty Fee (ETH) *
+              Royalty Fee (%) *
             </label>
             <input
               type="number"
               id="royaltyFee"
               name="royaltyFee"
-              value={royaltyFeeETH}
+              value={formData.royaltyFee}
               onChange={handleInputChange}
-              placeholder="Enter royalty fee in ETH (e.g., 0.01 for 0.01 ETH)"
+              placeholder="Enter royalty fee in percentage (e.g., 1 for 1%)"
               min="0"
-              step="0.001"
+              max="100"
+              step="0.01"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              Royalty fee in ETH that will be paid to the creator on each sale
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Current value in wei: {formData.royaltyFee.toString()}
+              Royalty fee in percentage that will be paid to the creator on each sale
             </p>
           </div>
 
