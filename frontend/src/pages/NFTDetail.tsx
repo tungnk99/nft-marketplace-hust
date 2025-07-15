@@ -12,11 +12,11 @@ import { toast } from '@/hooks/use-toast';
 const NFTDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userAddress, buyNFT, getNFTInfo } = useNFT();
+  const { userAddress, buyNFT, updatePrice, getNFTInfo } = useNFT();
   const [isBuying, setIsBuying] = useState(false);
   const [nftWithMetadata, setNftWithMetadata] = useState<NFTWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const [listPrice, setListPrice] = useState('');
   useEffect(() => {
     const loadNFTData = async () => {
       if (!id) {
@@ -92,6 +92,15 @@ const NFTDetail: React.FC = () => {
     }
   };
 
+  const handleUpdateListingPrice = async () => {
+    try {
+      const price = parseFloat(listPrice);
+      const up = await updatePrice(nftWithMetadata.id, price);
+      navigate(-1);
+    } catch (error) {
+      console.error('Error updating listing price:', error);
+    }
+  }
   function shortenAddress(addr: string) {
     return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '';
   }
@@ -260,7 +269,21 @@ const NFTDetail: React.FC = () => {
                     <span className="text-2xl font-bold">{nftWithMetadata.price} ETH</span>
                   </div>
                 </div>
-                
+                <div className="space-y-2">
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="Modify Price in ETH"
+                    value={listPrice}
+                    onChange={(e) => setListPrice(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                  <div className="flex space-x-2">
+                    <Button onClick={handleUpdateListingPrice} size="sm" className="flex-1">
+                      Modify Price
+                    </Button>
+                  </div>                
+                </div>               
                 {canBuy && (
                   <Button 
                     onClick={handleBuy}

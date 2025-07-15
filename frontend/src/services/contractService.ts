@@ -105,7 +105,6 @@ export class BlockchainService {
       throw error;
     }
   }
-
   /*
     Buy NFT. nftId is the NFT id.
     Returns: boolean, true if successful, false if failed
