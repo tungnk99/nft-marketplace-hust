@@ -9,7 +9,7 @@ import { formatRoyaltyFee } from '../lib/utils';
 interface NFTCardProps {
   nft: NFTWithMetadata;
   onClick?: () => void;
-  onDetals?: () => void; // New prop for details view
+  onDetails?: () => void; // New prop for details view
   onBuy?: (id: string) => void;
   onUpdatePrice?: (id: string, price: number) => void;
   onList?: (id: string, price: number) => void;
