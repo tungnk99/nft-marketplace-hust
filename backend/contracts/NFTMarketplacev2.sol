@@ -31,6 +31,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         uint256 updatedAt;
         uint256 canceledAt;
         uint256 soldAt;
+        address buyer;
     }
 
     // Mapping from NFT address and tokenId to Listing
@@ -76,7 +77,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
 
         _listings[nft][tokenId] = Listing(nft, tokenId, msg.sender, price, block.timestamp, block.timestamp);
         _sellerListings[msg.sender].push(_listings[nft][tokenId]);
-        _listingLogs.push(ListingLogInfo(nft, tokenId, msg.sender, price, block.timestamp, block.timestamp, 0, 0));
+        _listingLogs.push(ListingLogInfo(nft, tokenId, msg.sender, price, block.timestamp, block.timestamp, 0, 0, address(0)));
         // payable(address(this)).transfer(_listingFee); // Transfer listing fee to contract
 
         emit ItemListed(nft, tokenId, msg.sender, price, block.timestamp);
@@ -152,6 +153,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
                 _listingLogs[i - 1].listedAt == item.listedAt
             ) {
                 _listingLogs[i - 1].soldAt = block.timestamp;
+                _listingLogs[i - 1].buyer = msg.sender;
                 break;
             }
         }
@@ -279,5 +281,28 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
                 break;
             }
         }
+    }
+
+    function getHistoryTransactionsByNFT(address nft, uint256 tokenId) external view returns (ListingLogInfo[] memory) {
+        uint256 totalLogs = _listingLogs.length;
+        uint256 count = 0;
+
+        for (uint256 i = 0; i < totalLogs; i++) {
+            if (_listingLogs[i].nft == nft && _listingLogs[i].tokenId == tokenId && _listingLogs[i].soldAt > 0) {
+                count++;
+            }
+        }
+
+        ListingLogInfo[] memory logs = new ListingLogInfo[](count);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < totalLogs; i++) {
+            if (_listingLogs[i].nft == nft && _listingLogs[i].tokenId == tokenId && _listingLogs[i].soldAt > 0) {
+                logs[index] = _listingLogs[i];
+                index++;
+            }
+        }
+
+        return logs;
     }
 }
