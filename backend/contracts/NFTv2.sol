@@ -4,6 +4,10 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+interface INFTMarketplace {
+    function getLastSoldPrice(address nft, uint256 tokenId) external view returns (uint256);
+}
+
 contract NFTv2 is ERC721URIStorage, Ownable {
     constructor(address marketplaceAddress) ERC721("THD NFT", "THD") Ownable(msg.sender) {
         require(marketplaceAddress != address(0), "Marketplace address cannot be zero");
@@ -18,13 +22,14 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         uint256 mintedAt;
     }
 
-    struct NFTInfoWithOwner {
+    struct FullNFTInfo {
         uint256 tokenId;
         string tokenURI;
         address creator;
         address owner;
         uint256 royaltyFee;
         uint256 mintedAt;
+        uint256 lastSoldPrice; // Added to store the last sold price
     }
 
     uint256 private _tokenIds;
@@ -137,37 +142,41 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         return ownedTokens;
     }
 
-    function getTokenInfoById(uint256 tokenId) external view returns (NFTInfoWithOwner memory) {
+    function getTokenInfoById(uint256 tokenId) external view returns (FullNFTInfo memory) {
         require(_exists(tokenId), "Token does not exist");
-        NFTInfoWithOwner memory nftInfoWithOwner = NFTInfoWithOwner({
+        uint256 lastSoldPrice = INFTMarketplace(_marketplaceAddress).getLastSoldPrice(address(this), tokenId);
+        FullNFTInfo memory nftInfoWithOwner = FullNFTInfo({
             tokenId: tokenId,
             tokenURI: _nftInfos[tokenId].tokenURI,
             creator: _nftInfos[tokenId].creator,
             owner: ownerOf(tokenId),
             royaltyFee: _nftInfos[tokenId].royaltyFee,
-            mintedAt: _nftInfos[tokenId].mintedAt
+            mintedAt: _nftInfos[tokenId].mintedAt,
+            lastSoldPrice: lastSoldPrice // Get the last sold price from the marketplace
         });
         return nftInfoWithOwner;
     }
 
-    function getTokenInfoByCreator(address creator) external view returns (NFTInfoWithOwner[] memory) {
+    function getTokenInfoByCreator(address creator) external view returns (FullNFTInfo[] memory) {
         uint256 numberOfTokensCreated = _creatorTokenCount[creator];
         if (numberOfTokensCreated == 0) {
-            return new NFTInfoWithOwner[](0); // Return an empty array if no tokens are created by the creator
+            return new FullNFTInfo[](0); // Return an empty array if no tokens are created by the creator
         }
 
-        NFTInfoWithOwner[] memory createdTokens = new NFTInfoWithOwner[](numberOfTokensCreated);
+        FullNFTInfo[] memory createdTokens = new FullNFTInfo[](numberOfTokensCreated);
         uint256 currentIndex = 0;
         for (uint256 i = 0; i < _tokenIds; i++) {
             uint256 tokenId = i + 1;
             if (_nftInfos[tokenId].creator != creator) continue;
-            createdTokens[currentIndex] = NFTInfoWithOwner({
+            uint256 lastSoldPrice = INFTMarketplace(_marketplaceAddress).getLastSoldPrice(address(this), tokenId);
+            createdTokens[currentIndex] = FullNFTInfo({
                 tokenId: tokenId,
                 tokenURI: _nftInfos[tokenId].tokenURI,
                 creator: _nftInfos[tokenId].creator,
                 owner: ownerOf(tokenId),
                 royaltyFee: _nftInfos[tokenId].royaltyFee,
-                mintedAt: _nftInfos[tokenId].mintedAt
+                mintedAt: _nftInfos[tokenId].mintedAt,
+                lastSoldPrice: lastSoldPrice
             });
             currentIndex += 1;
         }
@@ -175,24 +184,26 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         return createdTokens;
     }
 
-    function getTokenInfoByOwner(address owner) external view returns (NFTInfoWithOwner[] memory) {
+    function getTokenInfoByOwner(address owner) external view returns (FullNFTInfo[] memory) {
         uint256 numberOfTokensOwned = balanceOf(owner);
         if (numberOfTokensOwned == 0) {
-            return new NFTInfoWithOwner[](0); // Return an empty array if no tokens are owned by the owner
+            return new FullNFTInfo[](0); // Return an empty array if no tokens are owned by the owner
         }
 
-        NFTInfoWithOwner[] memory ownedTokens = new NFTInfoWithOwner[](numberOfTokensOwned);
+        FullNFTInfo[] memory ownedTokens = new FullNFTInfo[](numberOfTokensOwned);
         uint256 currentIndex = 0;
         for (uint256 i = 0; i < _tokenIds; i++) {
             uint256 tokenId = i + 1;
             if (ownerOf(tokenId) != owner) continue;
-            ownedTokens[currentIndex] = NFTInfoWithOwner({
+            uint256 lastSoldPrice = INFTMarketplace(_marketplaceAddress).getLastSoldPrice(address(this), tokenId);
+            ownedTokens[currentIndex] = FullNFTInfo({
                 tokenId: tokenId,
                 tokenURI: _nftInfos[tokenId].tokenURI,
                 creator: _nftInfos[tokenId].creator,
                 owner: ownerOf(tokenId),
                 royaltyFee: _nftInfos[tokenId].royaltyFee,
-                mintedAt: _nftInfos[tokenId].mintedAt
+                mintedAt: _nftInfos[tokenId].mintedAt,
+                lastSoldPrice: lastSoldPrice // Get the last sold price from the marketplace
             });
             currentIndex += 1;
         }

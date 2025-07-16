@@ -101,14 +101,14 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         }
 
         // Update the listing log
-        for (uint i = _listingLogs.length - 1; i >= 0; i--) {
-            if (_listingLogs[i].nft == nft && 
-                _listingLogs[i].tokenId == tokenId && 
-                _listingLogs[i].seller == msg.sender && 
-                _listingLogs[i].listedAt == item.listedAt
+        for (uint256 i = _listingLogs.length; i > 0; i--) {
+            if (_listingLogs[i - 1].nft == nft && 
+                _listingLogs[i - 1].tokenId == tokenId && 
+                _listingLogs[i - 1].seller == msg.sender && 
+                _listingLogs[i - 1].listedAt == item.listedAt
             ) {
-                _listingLogs[i].price = newPrice;
-                _listingLogs[i].updatedAt = block.timestamp;
+                _listingLogs[i - 1].price = newPrice;
+                _listingLogs[i - 1].updatedAt = block.timestamp;
                 break;
             }
         }
@@ -145,13 +145,13 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         _removeListing(nft, tokenId, item.seller);
 
         // Update the listing log
-        for (uint i = _listingLogs.length - 1; i >= 0; i--) {
-            if (_listingLogs[i].nft == nft && 
-                _listingLogs[i].tokenId == tokenId && 
-                _listingLogs[i].seller == item.seller && 
-                _listingLogs[i].listedAt == item.listedAt
+        for (uint256 i = _listingLogs.length; i > 0; i--) {
+            if (_listingLogs[i - 1].nft == nft && 
+                _listingLogs[i - 1].tokenId == tokenId && 
+                _listingLogs[i - 1].seller == item.seller && 
+                _listingLogs[i - 1].listedAt == item.listedAt
             ) {
-                _listingLogs[i].soldAt = block.timestamp;
+                _listingLogs[i - 1].soldAt = block.timestamp;
                 break;
             }
         }
@@ -180,13 +180,13 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
 
         uint256 countValidListings = 0;
         uint256 startIndex = totalListings - 1;
-        for (uint i = totalListings - 1; i >= 0; i--) {
-            if (_listingLogs[i].canceledAt > 0 || _listingLogs[i].soldAt > 0) {
+        for (uint256 i = totalListings; i > 0; i--) {
+            if (_listingLogs[i - 1].canceledAt > 0 || _listingLogs[i - 1].soldAt > 0) {
                 continue;
             } else {
                 countValidListings++;
                 if (countValidListings >= limit + offset) {
-                    startIndex = i;
+                    startIndex = i - 1;
                     break;
                 }
             }
@@ -246,6 +246,15 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         return _listings[nft][tokenId];
     }
 
+    function getLastSoldPrice(address nft, uint256 tokenId) external view returns (uint256) {
+        for (uint256 i = _listingLogs.length; i > 0; i--) {
+            if (_listingLogs[i - 1].nft == nft && _listingLogs[i - 1].tokenId == tokenId && _listingLogs[i - 1].soldAt > 0) {
+                return _listingLogs[i - 1].price;
+            }
+        }
+        return 0; // Return 0 if no sold listing found
+    }
+
     function _removeListing(address nft, uint256 tokenId, address seller) internal {
         delete _listings[nft][tokenId];
         Listing[] storage items = _sellerListings[seller];
@@ -260,13 +269,13 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         }
 
         // Update the listing log
-        for (uint i = _listingLogs.length - 1; i >= 0; i--) {
-            if (_listingLogs[i].nft == nft && 
-                _listingLogs[i].tokenId == tokenId && 
-                _listingLogs[i].seller == seller && 
-                _listingLogs[i].listedAt == listedAt
+        for (uint i = _listingLogs.length; i > 0; i--) {
+            if (_listingLogs[i - 1].nft == nft && 
+                _listingLogs[i - 1].tokenId == tokenId && 
+                _listingLogs[i - 1].seller == seller && 
+                _listingLogs[i - 1].listedAt == listedAt
             ) {
-                _listingLogs[i].canceledAt = block.timestamp;
+                _listingLogs[i - 1].canceledAt = block.timestamp;
                 break;
             }
         }
