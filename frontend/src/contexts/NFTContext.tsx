@@ -12,6 +12,7 @@ export interface NFT {
   isListing: boolean;
   createdAt: Date;
   royaltyFee: number; // Royalty fee in percentage (0-100)
+  lastSoldPrice: number; // Last sold price in wei
 }
 
 // Extended NFT interface with metadata loaded from IPFS
@@ -24,6 +25,16 @@ export interface NFTWithMetadata extends NFT {
     trait_type: string;
     value: string | number;
   }>;
+}
+
+export interface NFTTransaction {
+  id: string;
+  seller: string;
+  price: number;
+  listedAt: Date;
+  updatedAt: Date;
+  soldAt: Date;
+  buyer: string;
 }
 
 interface NFTContextType {
@@ -39,6 +50,7 @@ interface NFTContextType {
   getNFTWithMetadata: (nft: NFT) => Promise<NFTWithMetadata | null>;
   getNFTInfo: (nftId: string) => Promise<NFTWithMetadata>;
   isNFTListed: (nftId: string) => Promise<boolean>;
+  getHistoricalTransactions: (nftId: string) => Promise<NFTTransaction[]>;
 }
 
 const NFTContext = createContext<NFTContextType | undefined>(undefined);
@@ -172,6 +184,16 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return await blockchainService.isNFTListed(nftId);
   }, []);
 
+  const getHistoricalTransactions = useCallback(async (nftId: string): Promise<NFTTransaction[]> => {
+    try {
+      // Call blockchain service to get historical transactions
+      return await blockchainService.getNFTHistoricalTransactions(nftId);
+    } catch (error) {
+      console.error('Error getting historical transactions:', error);
+      return [];
+    }
+  }, []);
+
   return (
     <NFTContext.Provider value={{
       loading,
@@ -186,6 +208,7 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       getNFTWithMetadata,
       getNFTInfo,
       isNFTListed,
+      getHistoricalTransactions
     }}>
       {children}
     </NFTContext.Provider>

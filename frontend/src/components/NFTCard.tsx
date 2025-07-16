@@ -171,6 +171,13 @@ const NFTCard: React.FC<NFTCardProps> = ({
             <span className="mr-2">Royalty:</span>
             <span className="font-medium">{formatRoyaltyFee(nft.royaltyFee)}</span>
           </div>
+
+          <div className="flex items-center gap-1">
+            <Tag className="w-3 h-3 mr-1" />
+            <span className="mr-2">Last Sold Price:</span>
+            <span className="font-medium">{nft.lastSoldPrice} ETH</span>
+          </div>
+
           <div className="flex items-center gap-1">
             <Hash className="w-3 h-3 mr-1" />
             <span className="mr-2">Token ID:</span>
