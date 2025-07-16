@@ -18,7 +18,7 @@ const ITEMS_PER_PAGE = 8;
 
 const MyNFTs: React.FC = () => {
   const navigate = useNavigate();
-  const { getUserNFTs, listNFT, delistNFT, getNFTWithMetadata } = useNFT();
+  const { getUserNFTs, listNFT, delistNFT, updatePrice, getNFTWithMetadata } = useNFT();
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState('collection');
@@ -211,8 +211,8 @@ const MyNFTs: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const handleNFTClick = (nft: NFTWithMetadata) => {
-    navigate(`/nft/${nft.id}`);
+  const handleNFTClick = (nft: NFTWithMetadata, show: boolean) => {
+    const handleClick = show? navigate(`/nft/${nft.id}`) : null;
   };
 
   const handleListNFT = async (id: string, price: number) => {
@@ -233,7 +233,23 @@ const MyNFTs: React.FC = () => {
       });
     }
   };
-
+  const handleUpdateListingPrice = async (id: string, price: number) => {
+    try {
+      toast({
+        title: "Waiting to update Price",
+        description: "Price is updated to blockchain, please wait a moment.",
+      });
+      const up = await updatePrice(id, price);
+      navigate(-1);
+    } catch (error) {
+      console.error('Error updating listing price:', error);
+      toast({
+        title: "Waiting to update Price",
+        description: "Fail to update price, please try again.",
+        variant: "destructive",
+      });
+    }
+  }
   const handleDelistNFT = async (id: string) => {
     try {
       await delistNFT(id);
@@ -358,11 +374,14 @@ const MyNFTs: React.FC = () => {
                     <NFTCard
                       key={nft.id}
                       nft={nft}
-                      onClick={() => handleNFTClick(nft)}
+                      onClick={() => handleNFTClick(nft, true)}
+                      onDetails={() => handleNFTClick(nft, true)}
                       onList={handleListNFT}
                       onDelist={handleDelistNFT}
+                      onUpdatePrice={handleUpdateListingPrice}
                       showListButton={!isActuallyListing}
                       showDelistButton={isActuallyListing}
+                      showListedTab={false}
                       showStatusBadge={true} // Show status badge in collection view
                     />
                   );
@@ -424,9 +443,12 @@ const MyNFTs: React.FC = () => {
                   <NFTCard
                     key={nft.id}
                     nft={nft}
-                    onClick={() => handleNFTClick(nft)}
+                    onClick={() => handleNFTClick(nft, false)}
+                    onDetails={() => handleNFTClick(nft, true)}
                     onDelist={handleDelistNFT}
+                    onUpdatePrice={handleUpdateListingPrice}
                     showDelistButton={true}
+                    showListedTab={true}
                     showStatusBadge={true} // Show status badge in listed view
                   />
                 ))}

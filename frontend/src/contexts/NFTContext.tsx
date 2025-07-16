@@ -31,6 +31,7 @@ interface NFTContextType {
   userAddress: string;
   buyNFT: (id: string) => Promise<void>;
   mintNFT: (cid: string, royaltyFee?: number) => Promise<string>;
+  updatePrice: (nftId: string, newPrice: number) => Promise<boolean>;
   listNFT: (id: string, price: number) => Promise<void>;
   delistNFT: (id: string) => Promise<void>;
   getUserNFTs: () => Promise<NFT[]>;
@@ -87,6 +88,16 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch (error) {
       console.error('Error listing NFT for sale:', error);
+      throw error;
+    }
+  }, []);
+
+  const updatePrice = useCallback(async (nftId: string, newPrice: number) => {
+    try {
+      // Call blockchain service to update NFT price  
+      await blockchainService.updatePrice(nftId, newPrice);
+    } catch (error) {
+      console.error('Error updating NFT price:', error);
       throw error;
     }
   }, []);
@@ -168,6 +179,7 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       buyNFT,
       mintNFT,
       listNFT,
+      updatePrice,
       delistNFT,
       getUserNFTs,
       getMarketplaceNFTs,

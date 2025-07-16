@@ -9,11 +9,14 @@ import { formatRoyaltyFee } from '../lib/utils';
 interface NFTCardProps {
   nft: NFTWithMetadata;
   onClick?: () => void;
+  onDetails?: () => void; // New prop for details view
   onBuy?: (id: string) => void;
+  onUpdatePrice?: (id: string, price: number) => void;
   onList?: (id: string, price: number) => void;
   onDelist?: (id: string) => void;
   showBuyButton?: boolean;
   showListButton?: boolean;
+  showListedTab?: boolean; // New prop to control listed tab display
   showDelistButton?: boolean;
   showStatusBadge?: boolean; // New prop to control status badge display
 }
@@ -21,12 +24,15 @@ interface NFTCardProps {
 const NFTCard: React.FC<NFTCardProps> = ({ 
   nft, 
   onClick,
+  onDetails,
   onBuy, 
+  onUpdatePrice,
   onList, 
   onDelist,
   showBuyButton = false, 
   showListButton = false,
   showDelistButton = false,
+  showListedTab = false, // Default to false for non-listed view
   showStatusBadge = true // Default to true for marketplace view
 }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +56,12 @@ const NFTCard: React.FC<NFTCardProps> = ({
       setListPrice('');
     }
   };
-
+  const handleUpdatePrice = () => {
+    const price = parseFloat(listPrice);
+    setTimeout(() => {
+    onUpdatePrice?.(nft.id, price);
+    }, 1500)
+  };
   const handleDelist = () => {
     onDelist?.(nft.id);
   };
@@ -58,6 +69,9 @@ const NFTCard: React.FC<NFTCardProps> = ({
   const handleCardClick = () => {
     onClick?.();
   };
+  const handleDetailsClick = () => {
+    onDetails?.();
+  }
 
   function shortenAddress(addr: string) {
     return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '';
@@ -183,6 +197,27 @@ const NFTCard: React.FC<NFTCardProps> = ({
             {nft.price} ETH
           </div>
         )}
+        {nft.isListing && showListedTab && (
+          <div className="space-y-2">
+            <input
+              type="number"
+              step="0.1"
+              placeholder="Modify Price in ETH"
+              value={listPrice}
+              onChange={(e) => setListPrice(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+            />
+            <div className="flex space-x-2">
+              <Button onClick={handleUpdatePrice} size="sm" className="flex-1">
+                Modify Price
+              </Button>
+            </div>
+            <div className="flex space-x-2">
+              <Button onClick={handleDetailsClick} size="sm" className="flex-1">
+                Details
+              </Button>
+            </div>          </div>
+        )}    
       </CardContent>
       
       <CardFooter className="p-4 pt-0" onClick={(e) => e.stopPropagation()}>
@@ -204,8 +239,8 @@ const NFTCard: React.FC<NFTCardProps> = ({
           >
             Delist from Sale
           </Button>
-        )}
-        
+        )}      
+    
         {showListButton && !nft.isListing && (
           <div className="w-full">
             {!showListForm ? (

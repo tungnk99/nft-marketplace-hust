@@ -16,7 +16,6 @@ const NFTDetail: React.FC = () => {
   const [isBuying, setIsBuying] = useState(false);
   const [nftWithMetadata, setNftWithMetadata] = useState<NFTWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     const loadNFTData = async () => {
       if (!id) {
@@ -91,7 +90,7 @@ const NFTDetail: React.FC = () => {
       }
     }
   };
-
+  
   function shortenAddress(addr: string) {
     return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '';
   }
@@ -260,7 +259,6 @@ const NFTDetail: React.FC = () => {
                     <span className="text-2xl font-bold">{nftWithMetadata.price} ETH</span>
                   </div>
                 </div>
-                
                 {canBuy && (
                   <Button 
                     onClick={handleBuy}
