@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useNFT, NFTWithMetadata } from '../contexts/NFTContext';
+import { useNFT, NFTWithMetadata, NFTTransaction } from '../contexts/NFTContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -8,14 +8,25 @@ import { ArrowLeft, Calendar, User, Tag, Zap, Copy, Percent } from 'lucide-react
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatRoyaltyFee } from '../lib/utils';
 import { toast } from '@/hooks/use-toast';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableCaption,
+} from "@/components/ui/table";
 
 const NFTDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userAddress, buyNFT, getNFTInfo } = useNFT();
+  const { userAddress, buyNFT, getNFTInfo, getHistoricalTransactions } = useNFT();
   const [isBuying, setIsBuying] = useState(false);
   const [nftWithMetadata, setNftWithMetadata] = useState<NFTWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
+  const [historicalTransactions, setHistoricalTransactions] = useState<NFTTransaction[]>([]);
+
   useEffect(() => {
     const loadNFTData = async () => {
       if (!id) {
@@ -26,7 +37,13 @@ const NFTDetail: React.FC = () => {
       try {
         setLoading(true);
         const nftData = await getNFTInfo(id);
+        console.log('NFT data loaded:', nftData);
+        
         setNftWithMetadata(nftData);
+
+        // Load historical transactions
+        const transactions = await getHistoricalTransactions(id);
+        setHistoricalTransactions(transactions);
       } catch (error) {
         console.error('Error loading NFT data:', error);
         setNftWithMetadata(null);
@@ -36,7 +53,7 @@ const NFTDetail: React.FC = () => {
     };
 
     loadNFTData();
-  }, [id, getNFTInfo]);
+  }, [id, getNFTInfo, getHistoricalTransactions]);
 
   if (loading) {
     return (
@@ -243,6 +260,14 @@ const NFTDetail: React.FC = () => {
                 </div>
                 <span className="text-sm font-medium">{formatRoyaltyFee(nftWithMetadata.royaltyFee)}</span>
               </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Last Sold Price</span>
+                </div>
+                <span className="text-sm font-medium">{nftWithMetadata.lastSoldPrice} ETH</span>
+              </div>
             </CardContent>
           </Card>
 
@@ -290,6 +315,56 @@ const NFTDetail: React.FC = () => {
           )}
         </div>
       </div>
+
+      {historicalTransactions.length > 0 && (
+      <div className="mt-12">
+        <div className="mt-12 text-center">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Historical Transactions</h1>
+          {/* <p className="text-black-500"></p> */}
+        </div>
+        <div  className="shadow-lg">
+          <Table className="bg-white text-gray-800 border border-gray-200">
+            {/* <TableCaption>Historical Transactions.</TableCaption> */}
+            <TableHeader>
+              <TableRow className="bg-gray-200 hover:bg-gray-300">
+                <TableHead className="text-blue-600 text-center">Time</TableHead>
+                <TableHead className="text-blue-600 text-center">Seller</TableHead>
+                <TableHead className="text-blue-600 text-center">Buyer</TableHead>
+                <TableHead className="text-blue-600 text-center">Price</TableHead>
+                {/* <TableHead className="text-right">Actions</TableHead> */}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {historicalTransactions.map((transaction) => (
+                <TableRow key={transaction.id}>
+                  <TableCell className="text-center">
+                    {transaction.soldAt.toLocaleDateString()} {transaction.soldAt.toLocaleTimeString()}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {transaction.seller}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {transaction.buyer}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {transaction.price} ETH
+                  </TableCell>
+                  {/* <TableCell className="text-right">
+                    <button className="text-blue-600 hover:underline">View</button>
+                  </TableCell> */}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+      )}
+
+      {historicalTransactions.length === 0 && (
+        <div className="mt-12 text-center">
+          <p className="text-gray-500">No historical transactions found for this NFT.</p>
+        </div>
+      )}
     </div>
   );
 };

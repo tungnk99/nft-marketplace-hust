@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { NFT } from '../contexts/NFTContext';
+import { NFT, NFTTransaction } from '../contexts/NFTContext';
 
 // Import contract addresses
 import contractAddresses from '../../contracts/contract_addresses.json';
@@ -256,6 +256,7 @@ export class BlockchainService {
               createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
               royaltyFee: Number(tokenInfo.royaltyFee),
               cid: tokenInfo.tokenURI,
+              lastSoldPrice: Number(ethers.formatEther(tokenInfo.lastSoldPrice)) || 0 // Last sold price in ETH
             };
             
             
@@ -315,6 +316,7 @@ export class BlockchainService {
             createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
             royaltyFee: Number(tokenInfo.royaltyFee),
             cid: tokenInfo.tokenURI,
+            lastSoldPrice: Number(ethers.formatEther(tokenInfo.lastSoldPrice)) || 0 // Last sold price in ETH
           };
           
           // Validation: If NFT is listed, ensure it has valid listing data
@@ -406,6 +408,7 @@ export class BlockchainService {
       createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
       royaltyFee: Number(tokenInfo.royaltyFee),
       cid: tokenInfo.tokenURI,
+      lastSoldPrice: Number(ethers.formatEther(tokenInfo.lastSoldPrice)) || 0 // Last sold price in ETH
     };
     
     return nft;
@@ -435,6 +438,38 @@ export class BlockchainService {
       // Nếu lỗi (ví dụ: chưa từng được list), trả về false
       console.log(`📋 NFT ${nftId} not listed (error occurred)`);
       return false;
+    }
+  }
+
+  /* Get historical transactions of a NFT
+     nftId: string
+     Returns: Array of transaction objects
+  */
+  public async getNFTHistoricalTransactions(nftId: string): Promise<NFTTransaction[]> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+
+      const transactions: NFTTransaction[] = [];
+      const transactionsFromBlockchain = await this.marketplaceContract.getHistoryTransactionsByNFT(nftContractAddress, nftId);
+
+      for (const tx of transactionsFromBlockchain) {
+        transactions.push({
+          id: tx.tokenId,
+          seller: tx.seller,
+          buyer: tx.buyer,
+          price: Number(ethers.formatEther(tx.price)),
+          listedAt: new Date(Number(tx.listedAt) * 1000),
+          updatedAt: new Date(Number(tx.updatedAt) * 1000),
+          soldAt: new Date(Number(tx.soldAt) * 1000),
+        });
+      }
+
+      return transactions;
+    } catch (error) {
+      console.error(`❌ Error getting historical transactions for NFT ${nftId}:`, error);
+      throw error;
     }
   }
 }
