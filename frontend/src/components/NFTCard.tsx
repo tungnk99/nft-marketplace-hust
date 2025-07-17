@@ -74,6 +74,19 @@ const NFTCard: React.FC<NFTCardProps> = ({
     if (price > 0) {
       setIsLoading(true);
       try {
+        // Luôn kiểm tra approve for all trước khi list
+        let approvedAll = false;
+        if (nftContext.userAddress) {
+          approvedAll = await nftContext.isApprovedForAll(nftContext.userAddress, marketplaceContractAddress);
+        }
+        if (!approvedAll) {
+          // Nếu chưa approve, hiển thị dialog approve for all
+          setShowListForm(false);
+          setShowApproveDialog(true);
+          setPendingList(true);
+          setIsLoading(false);
+          return;
+        }
         await onList?.(nft.id, price);
         setShowListForm(false);
         setListPrice('');
@@ -98,6 +111,8 @@ const NFTCard: React.FC<NFTCardProps> = ({
   };
 
   const handleCardClick = () => {
+    // Nếu đang approve hoặc loading thì không cho click vào card
+    if (showApproveDialog || isLoading || approveLoading) return;
     onClick?.();
   };
   const handleDetailsClick = () => {
@@ -141,6 +156,10 @@ const NFTCard: React.FC<NFTCardProps> = ({
         await nftContext.approveToMarketplace(nft.id);
       } else {
         await nftContext.setApprovalForAllToMarketplace(true);
+        // Cập nhật lại cache approveAll
+        if (nftContext.userAddress) {
+          await nftContext.isApprovedForAll(nftContext.userAddress, marketplaceContractAddress);
+        }
       }
       toast(
         <div>
@@ -238,6 +257,12 @@ const NFTCard: React.FC<NFTCardProps> = ({
     // Nếu không phải owner, render nút Buy nếu showBuyButton=true
     return (
       <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer relative" onClick={handleCardClick}>
+        {(approveLoading !== null) && (
+          <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-30">
+            <LoadingSpinner />
+            <span className="mt-2 text-blue-600 text-sm">Approving...</span>
+          </div>
+        )}
         {(isLoading || isTransferring) && (
           <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-20">
             <LoadingSpinner />
@@ -328,6 +353,12 @@ const NFTCard: React.FC<NFTCardProps> = ({
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer relative" onClick={handleCardClick}>
+      {(approveLoading !== null) && (
+        <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-30">
+          <LoadingSpinner />
+          <span className="mt-2 text-blue-600 text-sm">Approving...</span>
+        </div>
+      )}
       {(isLoading || isTransferring) && (
         <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-20">
           <LoadingSpinner />
