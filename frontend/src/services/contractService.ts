@@ -3,11 +3,11 @@ import { NFT, NFTTransaction } from '../contexts/NFTContext';
 
 // Import contract addresses
 import contractAddresses from '../../contracts/contract_addresses.json';
+export const marketplaceContractAddress = contractAddresses.NFTMarketplacev2;
 import NFTv2ABI from '../../contracts/NFTv2_abi.json';
 import NFTMarketplacev2ABI from '../../contracts/NFTMarketplacev2_abi.json';
 
 const nftContractAddress = contractAddresses.NFTv2;
-const marketplaceContractAddress = contractAddresses.NFTMarketplacev2;  
 const nftContractABI = NFTv2ABI.abi;
 const marketplaceContractABI = NFTMarketplacev2ABI.abi;
 
@@ -57,6 +57,82 @@ export class BlockchainService {
     }
   }
 
+  public async isApprovedForAll(owner: string, operator: string): Promise<boolean> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      return await this.nftContract.isApprovedForAll(owner, operator);
+    } catch (error) {
+      console.error('Error checking approval:', error);
+      throw error;
+    }
+  }
+
+  // Approve an address to transfer a specific NFT
+  public async approve(address: string, tokenId: string): Promise<boolean> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      return await this.nftContract.approve(address, tokenId);
+    } catch (error) {
+      console.error('Error approving:', error);
+      throw error;
+    }
+  }
+
+  public async approveToMarketplace(tokenId: string): Promise<boolean> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      return await this.nftContract.approve(marketplaceContractAddress, tokenId);  
+    } catch (error) {
+      console.error('Error approving to marketplace:', error);
+      throw error;
+    }
+  }
+  
+  public async getApprovalStatus(tokenId: string): Promise<boolean> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      // Only pass tokenId to getApproved (ERC-721 standard)
+      const approvedAddress = await this.nftContract.getApproved(tokenId);
+      return approvedAddress.toLowerCase() === marketplaceContractAddress.toLowerCase();
+    } catch (error) {
+      console.error('Error getting approval status:', error);
+      throw error;
+    }
+  }
+
+  // Set approval for all NFTs to an operator
+  public async setApprovalForAll(operator: string, approved: boolean): Promise<boolean> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      return await this.nftContract.setApprovalForAll(operator, approved);
+    } catch (error) {
+      console.error('Error setting approval:', error);  
+      throw error;
+    }
+  }
+
+  public async setApprovalForAllToMarketplace(approved: boolean): Promise<boolean> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      return await this.nftContract.setApprovalForAll(marketplaceContractAddress, approved);
+    } catch (error) {
+      console.error('Error setting approval for all to marketplace:', error);
+      throw error;
+    }
+  }
+
   /*
     Mint NFT. cid is the IPFS CID of the NFT.
     cid: string
@@ -72,7 +148,7 @@ export class BlockchainService {
       // Validate royalty fee (0-100%)
       if (royaltyFee < 0 || royaltyFee > 100) {
         throw new Error('Royalty fee must be between 0% and 100%');
-      }
+  }
 
       console.log('Minting NFT with:', {
         cid,
@@ -469,6 +545,30 @@ export class BlockchainService {
       return transactions;
     } catch (error) {
       console.error(`❌ Error getting historical transactions for NFT ${nftId}:`, error);
+      throw error;
+    }
+
+
+  }
+
+  /*
+    Transfer NFT to another address.
+    from: string (current owner)
+    to: string (recipient address)
+    tokenId: string
+    Returns: boolean, true if successful, false if failed
+  */
+  public async transferNFT(from: string, to: string, tokenId: string): Promise<boolean> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      // Call safeTransferFrom(from, to, tokenId)
+      const tx = await this.nftContract["safeTransferFrom(address,address,uint256)"](from, to, tokenId);
+      await tx.wait();
+      return true;
+    } catch (error) {
+      console.error('Error transferring NFT:', error);
       throw error;
     }
   }

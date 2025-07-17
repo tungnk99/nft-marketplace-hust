@@ -220,17 +220,28 @@ const MyNFTs: React.FC = () => {
       await listNFT(id, price);
       // Reload user NFTs from blockchain
       await refreshUserNFTs();
-      toast({
-        title: "NFT Listed!",
-        description: `Your NFT is now listed for sale at ${price} ETH and visible on the marketplace.`,
-      });
+      // KHÔNG hiện toast thành công ở đây, để dialog xử lý
     } catch (error) {
       console.error('Error listing NFT:', error);
+      let message = "Failed to list NFT for sale. Please try again.";
+      if (error && typeof error === 'object') {
+        const err = error as any;
+        // ethers v6: code = 'ACTION_REJECTED', v5: code = 4001
+        if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
+          message = "Transaction was cancelled in MetaMask.";
+        } else if (err.reason) {
+          message = err.reason;
+        } else if (err.message && typeof err.message === 'string') {
+          // Lấy dòng đầu tiên, tránh quá dài
+          message = err.message.split('\n')[0].slice(0, 120);
+        }
+      }
       toast({
         title: "Error Listing NFT",
-        description: "Failed to list NFT for sale. Please try again.",
+        description: message,
         variant: "destructive"
       });
+      throw new Error(message); // Để dialog biết có lỗi, message dễ hiểu
     }
   };
   const handleUpdateListingPrice = async (id: string, price: number) => {
@@ -279,6 +290,11 @@ const MyNFTs: React.FC = () => {
       title: "NFT Minted Successfully!",
       description: "Your new NFT has been created and added to your collection.",
     });
+  };
+
+  // Handler to refresh after transfer
+  const handleTransferSuccess = async () => {
+    await refreshUserNFTs();
   };
 
   if (!isConnected) {
@@ -371,19 +387,20 @@ const MyNFTs: React.FC = () => {
                   const isActuallyListing = blockchainNFT?.isListing || false;
                   
                   return (
-                    <NFTCard
-                      key={nft.id}
-                      nft={nft}
+                  <NFTCard
+                    key={nft.id}
+                    nft={nft}
                       onClick={() => handleNFTClick(nft, true)}
                       onDetails={() => handleNFTClick(nft, true)}
-                      onList={handleListNFT}
-                      onDelist={handleDelistNFT}
+                    onList={handleListNFT}
+                    onDelist={handleDelistNFT}
                       onUpdatePrice={handleUpdateListingPrice}
                       showListButton={!isActuallyListing}
                       showDelistButton={isActuallyListing}
                       showListedTab={false}
                       showStatusBadge={true} // Show status badge in collection view
-                    />
+                      onTransferSuccess={handleTransferSuccess} // Pass transfer handler
+                  />
                   );
                 })}
               </div>

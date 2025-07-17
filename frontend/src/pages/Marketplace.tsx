@@ -19,6 +19,7 @@ const Marketplace: React.FC = () => {
   const [selectedNFT, setSelectedNFT] = useState<NFTWithMetadata | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [nftsWithMetadata, setNftsWithMetadata] = useState<NFTWithMetadata[]>([]);
+  const [buyingNFTId, setBuyingNFTId] = useState<string | null>(null);
   
   const [filters, setFilters] = useState<FilterOptions>({
     search: '',
@@ -31,7 +32,7 @@ const Marketplace: React.FC = () => {
       try {
         setLoading(true);
         const marketplaceNFTs = await getMarketplaceNFTs();
-        
+
         // Load metadata for all marketplace NFTs
         const nftsWithMetadataPromises = marketplaceNFTs.map(async (nft) => {
           try {
@@ -44,14 +45,14 @@ const Marketplace: React.FC = () => {
         });
         
         const results = await Promise.all(nftsWithMetadataPromises);
-        const validNFTs = results.filter((nft): nft is NFTWithMetadata => nft !== null);
-        setNftsWithMetadata(validNFTs);
+      const validNFTs = results.filter((nft): nft is NFTWithMetadata => nft !== null);
+      setNftsWithMetadata(validNFTs);
       } catch (error) {
         console.error('Error loading marketplace NFTs:', error);
         setNftsWithMetadata([]);
       } finally {
         setLoading(false);
-      }
+    }
     };
 
     loadMarketplaceNFTs();
@@ -127,6 +128,7 @@ const Marketplace: React.FC = () => {
 
   const handleConfirmPurchase = async () => {
     if (selectedNFT) {
+      setBuyingNFTId(selectedNFT.id); // Bắt đầu loading
       try {
         await buyNFT(selectedNFT.id);
         // Refresh marketplace NFTs after purchase
@@ -157,6 +159,8 @@ const Marketplace: React.FC = () => {
           variant: "destructive"
         });
         throw error; // Re-throw để PurchaseConfirmationDialog có thể catch
+      } finally {
+        setBuyingNFTId(null); // Kết thúc loading
       }
     }
   };
@@ -219,6 +223,8 @@ const Marketplace: React.FC = () => {
                 onBuy={() => handleBuyClick(nft)}
                 showBuyButton={!userAddress || nft.owner.toLowerCase() !== userAddress.toLowerCase()}
                 showStatusBadge={false} // Don't show status badge on marketplace since all NFTs are listed
+                isMarketplace={true}
+                isLoading={buyingNFTId === nft.id}
               />
             ))}
           </div>

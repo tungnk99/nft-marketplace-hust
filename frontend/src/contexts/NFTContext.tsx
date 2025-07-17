@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { blockchainService } from '../services/contractService';
 import { IPFSMetadataService, NFTMetadata } from '../services/ipfsMetadataService';
 import { useMetaMask } from '../hooks/useMetaMask';
+import { marketplaceContractAddress } from '../services/contractService';
 
 export interface NFT {
   id: string;
@@ -50,7 +51,14 @@ interface NFTContextType {
   getNFTWithMetadata: (nft: NFT) => Promise<NFTWithMetadata | null>;
   getNFTInfo: (nftId: string) => Promise<NFTWithMetadata>;
   isNFTListed: (nftId: string) => Promise<boolean>;
+  isApprovedForAll: (owner: string, operator: string) => Promise<boolean>;
+  approveToMarketplace: (tokenId: string) => Promise<boolean>;
+  setApprovalForAllToMarketplace: (approved: boolean) => Promise<boolean>;
   getHistoricalTransactions: (nftId: string) => Promise<NFTTransaction[]>;
+  getApprovalStatus: (tokenId: string) => Promise<boolean>; // Add this
+  getCachedIsApprovedForAll: () => boolean | null;
+  getCachedApprovalStatus: (tokenId: string) => boolean;
+  transferNFT: (to: string, tokenId: string) => Promise<boolean>; // New
 }
 
 const NFTContext = createContext<NFTContextType | undefined>(undefined);
@@ -62,8 +70,11 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const { account, isConnected } = useMetaMask();
   const userAddress = account || null;
 
+  const [approveAllCache, setApproveAllCache] = useState<boolean | null>(null);
+  const [approveSingleCache, setApproveSingleCache] = useState<{ [tokenId: string]: boolean }>({});
+
   const buyNFT = useCallback(async (id: string) => {
-    try {      
+    try {
       // Call blockchain service to buy NFT
       const success = await blockchainService.buyNFT(id);
       
@@ -104,10 +115,11 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  const updatePrice = useCallback(async (nftId: string, newPrice: number) => {
+  const updatePrice = useCallback(async (nftId: string, newPrice: number): Promise<boolean> => {
     try {
       // Call blockchain service to update NFT price  
       await blockchainService.updatePrice(nftId, newPrice);
+      return true;
     } catch (error) {
       console.error('Error updating NFT price:', error);
       throw error;
@@ -131,7 +143,21 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const getUserNFTs = useCallback(async (): Promise<NFT[]> => {
     if (!userAddress) return [];
     try {
-      return await blockchainService.getNFTsFromUser(userAddress);
+      const nfts = await blockchainService.getNFTsFromUser(userAddress);
+      // Check approve for all
+      const approvedAll = await blockchainService.isApprovedForAll(userAddress, marketplaceContractAddress);
+      setApproveAllCache(approvedAll);
+      if (!approvedAll) {
+        // Check approve for each NFT
+        const cache: { [tokenId: string]: boolean } = {};
+        for (const nft of nfts) {
+          cache[nft.id] = await blockchainService.getApprovalStatus(nft.id);
+        }
+        setApproveSingleCache(cache);
+      } else {
+        setApproveSingleCache({});
+      }
+      return nfts;
     } catch (error) {
       console.error('Error getting user NFTs:', error);
       return [];
@@ -152,15 +178,15 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       
       const metadata = await IPFSMetadataService.fetchMetadata(nft.cid);
-      
+        
       const result = {
-        ...nft,
-        name: metadata.name,
-        description: metadata.description,
-        image: metadata.image,
-        category: metadata.category,
-        attributes: metadata.attributes,
-      };
+      ...nft,
+      name: metadata.name,
+      description: metadata.description,
+      image: metadata.image,
+      category: metadata.category,
+      attributes: metadata.attributes,
+    };
       
       console.log(`✅ NFT with fresh metadata created for token ${nft.id}:`, result);
       
@@ -184,6 +210,20 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return await blockchainService.isNFTListed(nftId);
   }, []);
 
+  const isApprovedForAll = useCallback(async (owner: string, operator: string): Promise<boolean> => {
+    const result = await blockchainService.isApprovedForAll(owner, operator);
+    setApproveAllCache(result);
+    return result;
+  }, []);
+
+  const approveToMarketplace = useCallback(async (tokenId: string): Promise<boolean> => {
+    return await blockchainService.approveToMarketplace(tokenId);
+  }, []);
+
+  const setApprovalForAllToMarketplace = useCallback(async (approved: boolean): Promise<boolean> => {
+    return await blockchainService.setApprovalForAllToMarketplace(approved);
+  }, []);
+
   const getHistoricalTransactions = useCallback(async (nftId: string): Promise<NFTTransaction[]> => {
     try {
       // Call blockchain service to get historical transactions
@@ -193,6 +233,27 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return [];
     }
   }, []);
+
+  const getApprovalStatus = useCallback(async (tokenId: string): Promise<boolean> => {
+    const result = await blockchainService.getApprovalStatus(tokenId);
+    setApproveSingleCache(prev => ({ ...prev, [tokenId]: result }));
+    return result;
+  }, []);
+
+  // Add transferNFT
+  const transferNFT = useCallback(async (to: string, tokenId: string): Promise<boolean> => {
+    if (!userAddress) throw new Error('Wallet not connected');
+    try {
+      return await blockchainService.transferNFT(userAddress, to, tokenId);
+    } catch (error) {
+      console.error('Error transferring NFT:', error);
+      throw error;
+    }
+  }, [userAddress]);
+
+  // Cached checkers for components
+  const getCachedIsApprovedForAll = useCallback(() => approveAllCache, [approveAllCache]);
+  const getCachedApprovalStatus = useCallback((tokenId: string) => approveSingleCache[tokenId], [approveSingleCache]);
 
   return (
     <NFTContext.Provider value={{
@@ -208,7 +269,14 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       getNFTWithMetadata,
       getNFTInfo,
       isNFTListed,
-      getHistoricalTransactions
+      isApprovedForAll,
+      approveToMarketplace,
+      setApprovalForAllToMarketplace,
+      getHistoricalTransactions,
+      getApprovalStatus,
+      getCachedIsApprovedForAll,
+      getCachedApprovalStatus,
+      transferNFT // New
     }}>
       {children}
     </NFTContext.Provider>
