@@ -73,10 +73,10 @@ const PurchaseConfirmationDialog: React.FC<PurchaseConfirmationDialogProps> = ({
       await onConfirm();
       
       // Chỉ hiển thị thông báo thành công sau khi transaction hoàn thành
-      toast({
-        title: "Mua thành công!",
-        description: "NFT đã được chuyển vào ví của bạn.",
-      });
+        toast({
+          title: "Mua thành công!",
+          description: "NFT đã được chuyển vào ví của bạn.",
+        });
       
       onClose();
     } catch (error) {

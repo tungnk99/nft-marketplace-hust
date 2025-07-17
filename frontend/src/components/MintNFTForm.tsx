@@ -17,7 +17,7 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
     description: '',
     image: '',
     category: 'Art',
-    royaltyFee: 0, // Store as percentage (0-100)
+    royaltyFee: '0', // Store as string for input compatibility
   });
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
@@ -29,24 +29,22 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
     const { name, value } = e.target;
     
     if (name === 'royaltyFee') {
-      // Store percentage value directly
-      try {
-        const percentageValue = parseFloat(value) || 0;
-        
-        // Validate percentage range (0-100%)
-        if (percentageValue < 0 || percentageValue > 100) {
-          toast({
-            title: "Invalid Royalty Fee",
-            description: "Royalty fee must be between 0% and 100%.",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        setFormData(prev => ({ ...prev, [name]: percentageValue }));
-      } catch (error) {
-        console.error('Error parsing royalty fee:', error);
+      // Nếu input rỗng thì cho phép xóa (không ép về 0)
+      if (value === '') {
+        setFormData(prev => ({ ...prev, [name]: '' }));
+        return;
       }
+      // Chỉ cho phép số nguyên
+      const intValue = Number(value);
+      if (!Number.isInteger(intValue) || intValue < 0 || intValue > 100) {
+        toast({
+          title: "Invalid Royalty Fee",
+          description: "Royalty fee must be an integer between 0 and 100.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setFormData(prev => ({ ...prev, [name]: value }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -100,10 +98,11 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
     }
 
     // Validate royalty fee before minting
-    if (formData.royaltyFee < 0 || formData.royaltyFee > 100) {
+    let royaltyFeeToMint = formData.royaltyFee === '' ? 0 : Number(formData.royaltyFee);
+    if (!Number.isInteger(royaltyFeeToMint) || royaltyFeeToMint < 0 || royaltyFeeToMint > 100) {
       toast({
         title: "Invalid Royalty Fee",
-        description: "Royalty fee must be between 0% and 100%.",
+        description: "Royalty fee must be an integer between 0 and 100.",
         variant: "destructive",
       });
       return;
@@ -129,14 +128,14 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
       setMintStep('minting');
       
       console.log('Submitting mint with royalty fee:', {
-        percentage: formData.royaltyFee
+        percentage: royaltyFeeToMint
       });
-      
+
       // Add to local NFT collection and get the new NFT ID
-      const newNFTId = await mintNFT(result.NFTCid, formData.royaltyFee);
+      const newNFTId = await mintNFT(result.NFTCid, royaltyFeeToMint);
       
       // Reset form
-      setFormData({ name: '', description: '', image: '', category: 'Art', royaltyFee: 0 });
+      setFormData({ name: '', description: '', image: '', category: 'Art', royaltyFee: '0' });
       setImagePreview('');
       setUploadedFile(null);
       
@@ -315,7 +314,7 @@ const MintNFTForm: React.FC<MintNFTFormProps> = ({ onMintSuccess }) => {
               placeholder="Enter royalty fee in percentage (e.g., 1 for 1%)"
               min="0"
               max="100"
-              step="0.01"
+              step="1"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />

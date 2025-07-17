@@ -4,7 +4,7 @@ import { useNFT, NFTWithMetadata, NFTTransaction } from '../contexts/NFTContext'
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, Calendar, User, Tag, Zap, Copy, Percent } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Tag, Zap, Copy, Percent, Edit2, CheckCircle, XCircle, CircleCheck, CircleX, FileText, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatRoyaltyFee } from '../lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -21,11 +21,19 @@ import {
 const NFTDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { userAddress, buyNFT, getNFTInfo, getHistoricalTransactions } = useNFT();
+  const { userAddress, buyNFT, getNFTInfo, getHistoricalTransactions, updatePrice } = useNFT();
   const [isBuying, setIsBuying] = useState(false);
   const [nftWithMetadata, setNftWithMetadata] = useState<NFTWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [historicalTransactions, setHistoricalTransactions] = useState<NFTTransaction[]>([]);
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [editPrice, setEditPrice] = useState('');
+  // Thêm state cho paging
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PER_PAGE = 5;
+  const totalHistoryPages = Math.ceil(historicalTransactions.length / HISTORY_PER_PAGE);
+  const pagedHistory = historicalTransactions.slice((historyPage-1)*HISTORY_PER_PAGE, historyPage*HISTORY_PER_PAGE);
+  const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
 
   useEffect(() => {
     const loadNFTData = async () => {
@@ -34,8 +42,8 @@ const NFTDetail: React.FC = () => {
         return;
       }
 
-      try {
-        setLoading(true);
+        try {
+          setLoading(true);
         const nftData = await getNFTInfo(id);
         console.log('NFT data loaded:', nftData);
         
@@ -44,10 +52,10 @@ const NFTDetail: React.FC = () => {
         // Load historical transactions
         const transactions = await getHistoricalTransactions(id);
         setHistoricalTransactions(transactions);
-      } catch (error) {
+        } catch (error) {
         console.error('Error loading NFT data:', error);
         setNftWithMetadata(null);
-      } finally {
+        } finally {
         setLoading(false);
       }
     };
@@ -107,10 +115,26 @@ const NFTDetail: React.FC = () => {
       }
     }
   };
-  
+
   function shortenAddress(addr: string) {
     return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '';
   }
+
+  const handleUpdatePrice = async (id: string, price: number) => {
+    setIsUpdatingPrice(true);
+    try {
+      await updatePrice(id, price);
+      toast({ title: 'Price updated!', description: `Listing price updated to ${price} ETH.` });
+      // Reload NFT info
+      const nftData = await getNFTInfo(id);
+      setNftWithMetadata(nftData);
+      setIsEditingPrice(false);
+    } catch (error) {
+      toast({ title: 'Error updating price', description: 'Failed to update price. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsUpdatingPrice(false);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -120,6 +144,14 @@ const NFTDetail: React.FC = () => {
           Back
         </Button>
       </div>
+
+      {/* Overlay loading spinner khi isUpdatingPrice */}
+      {isUpdatingPrice && (
+        <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-20">
+          <LoadingSpinner />
+          <span className="mt-2 text-gray-600 text-sm">Processing...</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Image Section */}
@@ -137,42 +169,58 @@ const NFTDetail: React.FC = () => {
 
         {/* Details Section */}
         <div className="space-y-6">
+          {/* Ở phần header tên NFT */}
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">{nftWithMetadata.name}</h1>
-            <div className="flex items-center gap-2 mb-4">
-              <Badge variant="outline">{nftWithMetadata.category}</Badge>
+            <div className="flex items-center gap-2 mb-2">
+              <h1 className="text-3xl font-bold text-gray-800">{nftWithMetadata.name}</h1>
+              {isOwner && (
+                <Badge variant="secondary" className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 border-blue-200">Owner</Badge>
+              )}
             </div>
           </div>
 
+          {/* Information Section - Description full width, attributes grid 2 cột, category là attribute đầu tiên */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Description</CardTitle>
+              <CardTitle className="text-lg">Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{nftWithMetadata.description}</p>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center text-sm text-gray-600">
+                    <FileText className="w-4 h-4 mr-2 text-gray-400" />
+                    Description
+                  </span>
+                  <span className="text-sm text-gray-800 font-medium ml-4 text-right">{nftWithMetadata.description}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center text-sm text-gray-600">
+                    <Tag className="w-4 h-4 mr-2 text-gray-400" />
+                    Category
+                  </span>
+                  <Badge variant="outline" className="ml-4 text-xs px-2 py-0.5">{nftWithMetadata.category}</Badge>
+                </div>
+                {nftWithMetadata.attributes && nftWithMetadata.attributes.filter(attr => attr.trait_type.toLowerCase() !== 'category').length > 0 && (
+                  <div>
+                    <div className="flex items-center text-sm text-gray-600 mb-1">
+                      <List className="w-4 h-4 mr-2 text-gray-400" />
+                      Attribute
+                    </div>
+                    <div className="space-y-1">
+                      {nftWithMetadata.attributes.filter(attr => attr.trait_type.toLowerCase() !== 'category').map((attr, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-gray-50 rounded px-2 py-1">
+                          <span className="text-xs text-gray-600">{attr.trait_type}</span>
+                          <span className="text-xs text-gray-800 font-medium">{attr.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Attributes Section */}
-          {nftWithMetadata.attributes && nftWithMetadata.attributes.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Attributes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3">
-                  {nftWithMetadata.attributes.map((attr, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-700">{attr.trait_type}</span>
-                      <Badge variant="outline">{attr.value}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
+          <Card className="mt-4">
             <CardHeader>
               <CardTitle className="text-lg">Details</CardTitle>
             </CardHeader>
@@ -273,16 +321,78 @@ const NFTDetail: React.FC = () => {
 
           {/* Price and Buy Section */}
           {nftWithMetadata.isListing && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Price</CardTitle>
-              </CardHeader>
+            <Card className="relative">
               <CardContent>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 py-2">
+                  <span className="text-base font-semibold text-gray-800">Listing Price:</span>
                     <Zap className="w-5 h-5 text-yellow-500" />
+                  {isOwner ? (
+                    isEditingPrice ? (
+                      <>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          value={editPrice}
+                          onChange={e => setEditPrice(e.target.value)}
+                          className="border border-gray-300 rounded-md px-2 py-1 text-2xl font-bold text-blue-600 w-28 focus:outline-none focus:ring-2 focus:ring-blue-400 mr-2"
+                          style={{ width: '110px' }}
+                          autoFocus
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <span className="text-blue-600 text-2xl font-bold mr-2">ETH</span>
+                        <Button
+                          size="icon"
+                          className="w-8 h-8 p-0 bg-green-100 hover:bg-green-200 text-green-600 mr-1 flex items-center justify-center"
+                          onClick={e => {
+                            e.stopPropagation();
+                            const newPrice = Number(editPrice);
+                            if (isNaN(newPrice) || newPrice <= 0) return;
+                            if (newPrice === nftWithMetadata.price) {
+                              toast({ title: 'Price has not changed.', variant: 'destructive' });
+                              return;
+                            }
+                            handleUpdatePrice(nftWithMetadata.id, newPrice);
+                          }}
+                          disabled={isNaN(Number(editPrice)) || Number(editPrice) <= 0}
+                          title="Confirm"
+                        >
+                          {typeof CheckCircle !== 'undefined' ? <CheckCircle className="w-5 h-5" /> : <CircleCheck className="w-5 h-5" />}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-8 h-8 p-0 text-red-500 hover:bg-red-100 flex items-center justify-center"
+                          onClick={e => {
+                            e.stopPropagation();
+                            setIsEditingPrice(false);
+                            setEditPrice(nftWithMetadata.price.toString());
+                          }}
+                          title="Cancel"
+                        >
+                          {typeof XCircle !== 'undefined' ? <XCircle className="w-5 h-5" /> : <CircleX className="w-5 h-5" />}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-2xl font-bold text-blue-600 mr-2">{nftWithMetadata.price} ETH</span>
+                        <Button
+                          size="icon"
+                          className="w-8 h-8 p-0 bg-gray-100 hover:bg-gray-200 text-blue-600 border border-blue-200 mr-2 flex items-center justify-center"
+                          onClick={e => {
+                            e.stopPropagation();
+                            setIsEditingPrice(true);
+                            setEditPrice(nftWithMetadata.price.toString());
+                          }}
+                          title="Edit Price"
+                        >
+                          <Edit2 className="w-5 h-5" />
+                        </Button>
+                      </>
+                    )
+                  ) : (
                     <span className="text-2xl font-bold">{nftWithMetadata.price} ETH</span>
-                  </div>
+                  )}
                 </div>
                 {canBuy && (
                   <Button 
@@ -295,11 +405,6 @@ const NFTDetail: React.FC = () => {
                   </Button>
                 )}
                 
-                {isOwner && (
-                  <Badge variant="secondary" className="w-full justify-center py-2">
-                    You own this NFT
-                  </Badge>
-                )}
               </CardContent>
             </Card>
           )}
@@ -316,55 +421,54 @@ const NFTDetail: React.FC = () => {
         </div>
       </div>
 
-      {historicalTransactions.length > 0 && (
-      <div className="mt-12">
-        <div className="mt-12 text-center">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Historical Transactions</h1>
-          {/* <p className="text-black-500"></p> */}
-        </div>
-        <div  className="shadow-lg">
-          <Table className="bg-white text-gray-800 border border-gray-200">
-            {/* <TableCaption>Historical Transactions.</TableCaption> */}
-            <TableHeader>
-              <TableRow className="bg-gray-200 hover:bg-gray-300">
-                <TableHead className="text-blue-600 text-center">Time</TableHead>
-                <TableHead className="text-blue-600 text-center">Seller</TableHead>
-                <TableHead className="text-blue-600 text-center">Buyer</TableHead>
-                <TableHead className="text-blue-600 text-center">Price</TableHead>
-                {/* <TableHead className="text-right">Actions</TableHead> */}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {historicalTransactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell className="text-center">
-                    {transaction.soldAt.toLocaleDateString()} {transaction.soldAt.toLocaleTimeString()}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {transaction.seller}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {transaction.buyer}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {transaction.price} ETH
-                  </TableCell>
-                  {/* <TableCell className="text-right">
-                    <button className="text-blue-600 hover:underline">View</button>
-                  </TableCell> */}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-      )}
-
-      {historicalTransactions.length === 0 && (
-        <div className="mt-12 text-center">
-          <p className="text-gray-500">No historical transactions found for this NFT.</p>
-        </div>
-      )}
+      {/* History Section */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="text-lg">Transaction History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {historicalTransactions.length > 0 ? (
+            <>
+              <div className="overflow-x-auto rounded-lg shadow-sm">
+                <Table className="bg-white text-gray-800 border border-gray-200">
+                  <TableHeader>
+                    <TableRow className="bg-gray-100">
+                      <TableHead className="text-blue-600 text-center">Time</TableHead>
+                      <TableHead className="text-blue-600 text-center">Seller</TableHead>
+                      <TableHead className="text-blue-600 text-center">Buyer</TableHead>
+                      <TableHead className="text-blue-600 text-center">Price</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedHistory.map((transaction) => (
+                      <TableRow key={transaction.id} className="hover:bg-blue-50 transition">
+                        <TableCell className="text-center text-sm">{transaction.soldAt.toLocaleDateString()} {transaction.soldAt.toLocaleTimeString()}</TableCell>
+                        <TableCell className="text-center text-xs font-mono">{transaction.seller}</TableCell>
+                        <TableCell className="text-center text-xs font-mono">{transaction.buyer}</TableCell>
+                        <TableCell className="text-right text-sm font-semibold">{transaction.price} ETH</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {/* Paging controls */}
+              {totalHistoryPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-4">
+                  <Button size="icon" variant="ghost" onClick={() => setHistoryPage(p => Math.max(1, p-1))} disabled={historyPage === 1}>
+                    <ChevronLeft className="w-5 h-5" />
+                  </Button>
+                  <span className="text-sm text-gray-600">Page {historyPage} of {totalHistoryPages}</span>
+                  <Button size="icon" variant="ghost" onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p+1))} disabled={historyPage === totalHistoryPages}>
+                    <ChevronRight className="w-5 h-5" />
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8 text-gray-500">No historical transactions found for this NFT.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

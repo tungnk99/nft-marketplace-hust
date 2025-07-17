@@ -21,17 +21,18 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
   const [selectedNFT, setSelectedNFT] = useState<string | null>(null);
   const [listPrice, setListPrice] = useState('');
   const [unlistedNFTsWithMetadata, setUnlistedNFTsWithMetadata] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingFetch, setLoadingFetch] = useState(false); // loading khi fetch NFTs
+  const [loadingList, setLoadingList] = useState(false); // loading khi listing
 
   useEffect(() => {
     if (!isOpen) return;
     const fetchMetadata = async () => {
-      setLoading(true);
+      setLoadingFetch(true);
       const userNFTs = await getUserNFTs();
       const unlistedNFTs = userNFTs.filter(nft => !nft.isListing);
       const nftsWithMeta = await Promise.all(unlistedNFTs.map(nft => getNFTWithMetadata(nft)));
       setUnlistedNFTsWithMetadata(nftsWithMeta.filter(Boolean));
-      setLoading(false);
+      setLoadingFetch(false);
     };
     fetchMetadata();
     // Reset selection and price when dialog opens
@@ -39,18 +40,32 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
     setListPrice('');
   }, [isOpen, getUserNFTs, getNFTWithMetadata]);
 
-  const handleListNFT = () => {
+  const handleListNFT = async () => {
     if (selectedNFT && listPrice) {
       const price = parseFloat(listPrice);
       if (price > 0) {
-        onNFTListed(selectedNFT, price);
-        setIsOpen(false);
-        setSelectedNFT(null);
-        setListPrice('');
-        toast({
-          title: "NFT Listed!",
-          description: `Your NFT is now listed for sale at ${price} ETH.`,
-        });
+        setLoadingList(true);
+        try {
+          const maybePromise = onNFTListed(selectedNFT, price);
+          if (typeof maybePromise !== 'undefined' && maybePromise !== null && typeof (maybePromise as Promise<any>).then === 'function') {
+            await maybePromise;
+          }
+          setIsOpen(false);
+          setSelectedNFT(null);
+          setListPrice('');
+          toast({
+            title: "NFT Listed!",
+            description: `Your NFT is now listed for sale at ${price} ETH.`,
+          });
+        } catch (error: any) {
+          toast({
+            title: "Listing Cancelled or Failed",
+            description: error?.message || "Listing was cancelled or failed. Please try again.",
+            variant: "destructive"
+          });
+        } finally {
+          setLoadingList(false);
+        }
       }
     }
   };
@@ -73,8 +88,13 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
         </DialogHeader>
         
         <div className="space-y-4">
-          {loading ? (
-            <div className="text-center py-8">Loading NFTs...</div>
+          {loadingFetch ? (
+            <div className="text-center py-8">
+              <div className="flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                <span className="text-blue-600 text-sm">Loading NFTs...</span>
+              </div>
+            </div>
           ) : unlistedNFTsWithMetadata.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">All your NFTs are already listed for sale!</p>
@@ -164,7 +184,13 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
               </div>
 
               {selectedNFT && (
-                <div className="border-t pt-4 space-y-4">
+                <div className="border-t pt-4 space-y-4 relative">
+                  {loadingList && (
+                    <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-10">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                      <span className="text-blue-600 text-sm">Listing NFT...</span>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium mb-2">
                       Set Price (ETH)
@@ -176,16 +202,21 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
                       value={listPrice}
                       onChange={(e) => setListPrice(e.target.value)}
                       className="w-full px-3 py-2 border rounded-md"
+                      disabled={loadingList}
                     />
                   </div>
                   
                   <div className="flex space-x-2">
                     <Button 
                       onClick={handleListNFT}
-                      disabled={!listPrice || parseFloat(listPrice) <= 0}
+                      disabled={!listPrice || parseFloat(listPrice) <= 0 || loadingList}
                       className="flex-1"
                     >
-                      List NFT for Sale
+                      {loadingList ? (
+                        <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>Listing...</span>
+                      ) : (
+                        'List NFT for Sale'
+                      )}
                     </Button>
                     <Button 
                       onClick={() => {
@@ -194,6 +225,7 @@ const AddNFTToListDialog: React.FC<AddNFTToListDialogProps> = ({ onNFTListed }) 
                       }}
                       variant="outline"
                       className="flex-1"
+                      disabled={loadingList}
                     >
                       Cancel
                     </Button>
