@@ -243,8 +243,8 @@ const NFTCard: React.FC<NFTCardProps> = ({
             </div>
             <div className="flex items-center gap-2 mt-3">
               <Tag className="w-4 h-4 text-gray-400 mr-1" />
-              <span className="text-xs text-gray-600 mr-1">Listing Price:</span>
-              <span className="font-bold text-blue-600 text-lg">{nft.price} ETH</span>
+              <span className="text-base text-gray-700 font-medium mr-1">Listing Price:</span>
+              <span className="font-bold text-blue-600 text-xl">{nft.price} ETH</span>
             </div>
             {/* Badge Owner ở vị trí nút Buy */}
             <div className="flex justify-start mt-4">
@@ -328,8 +328,8 @@ const NFTCard: React.FC<NFTCardProps> = ({
           </div>
           <div className="flex items-center gap-2 mt-3">
             <Tag className="w-4 h-4 text-gray-400 mr-1" />
-            <span className="text-xs text-gray-600 mr-1">Listing Price:</span>
-            <span className="font-bold text-blue-600 text-lg">{nft.price} ETH</span>
+            <span className="text-base text-gray-700 font-medium mr-1">Listing Price:</span>
+            <span className="font-bold text-blue-600 text-xl">{nft.price} ETH</span>
           </div>
           {showBuyButton && (
             <div className="flex justify-start mt-4">
@@ -482,8 +482,17 @@ const NFTCard: React.FC<NFTCardProps> = ({
         {!(showListedTab && nft.isListing) && (
           <div className="flex items-center gap-2 mt-3">
             <Tag className="w-4 h-4 text-gray-400 mr-1" />
-            <span className="text-xs text-gray-600 mr-1">Listing Price:</span>
-            <span className="font-bold text-blue-600 text-lg">{nft.price} ETH</span>
+            {isMarketplace ? (
+              <>
+                <span className="text-base text-gray-700 font-medium mr-1">Listing Price:</span>
+                <span className="font-bold text-blue-600 text-xl">{nft.price} ETH</span>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-gray-600 mr-1">Listing Price:</span>
+                <span className="font-bold text-blue-600 text-lg">{nft.price} ETH</span>
+              </>
+            )}
           </div>
         )}
         {showListedTab && nft.isListing && (
