@@ -250,8 +250,12 @@ const MyNFTs: React.FC = () => {
         title: "Waiting to update Price",
         description: "Price is updated to blockchain, please wait a moment.",
       });
-      const up = await updatePrice(id, price);
-      navigate(-1);
+      await updatePrice(id, price);
+      await refreshUserNFTs();
+      toast({
+        title: "Price updated!",
+        description: `Listing price updated to ${price} ETH.`,
+      });
     } catch (error) {
       console.error('Error updating listing price:', error);
       toast({
