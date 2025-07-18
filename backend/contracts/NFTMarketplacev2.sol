@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 interface INFT {
     function getCreatorOfToken(uint256 tokenId) external view returns (address);
     function getRoyaltyOfToken(uint256 tokenId) external view returns (uint256);
+    function getTokensByCreator(address creator) external view returns (uint256[] memory);
+    function updateListingStatus(uint256 tokenId, bool listingStatus) external;
 }
 
 contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
@@ -34,10 +36,17 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         address buyer;
     }
 
+    struct RoyaltyInfo {
+        uint256 tokenId;
+        uint256 totalRoyaltyFee;
+    }
+
     // Mapping from NFT address and tokenId to Listing
     mapping(address => mapping(uint256 => Listing)) private _listings;
     // Mapping from seller address to their listings
     mapping(address => Listing[]) private _sellerListings;
+    // Mapping from creator address to their created NFTs to total royalty fees
+    mapping(address => mapping(uint256 => uint256)) private _totalRoyaltyFeesByCreator;
 
     ListingLogInfo[] private _listingLogs;
 
@@ -76,6 +85,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         require(token.isApprovedForAll(msg.sender, address(this)), "Marketplace not approved");
 
         _listings[nft][tokenId] = Listing(nft, tokenId, msg.sender, price, block.timestamp, block.timestamp);
+        INFT(nft).updateListingStatus(tokenId, true); // Update listing status in NFT contract
         _sellerListings[msg.sender].push(_listings[nft][tokenId]);
         _listingLogs.push(ListingLogInfo(nft, tokenId, msg.sender, price, block.timestamp, block.timestamp, 0, 0, address(0)));
         // payable(address(this)).transfer(_listingFee); // Transfer listing fee to contract
@@ -123,6 +133,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         require(item.seller == msg.sender, "Not seller");
 
         _removeListing(nft, tokenId, item.seller);
+        INFT(nft).updateListingStatus(tokenId, false); // Update listing status in NFT contract
         emit ItemCanceled(nft, tokenId, block.timestamp);
     }
 
@@ -137,10 +148,28 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         uint256 royaltyPercent = INFT(nft).getRoyaltyOfToken(tokenId);
         address creator = INFT(nft).getCreatorOfToken(tokenId);
 
-        uint256 royaltyFee = (item.price * royaltyPercent) / 100;
-        require(royaltyFee <= msg.value, "Royalty fee exceeds payment");
+        uint256 sellerAmount = item.price;
+        uint256 royaltyFee = 0;
 
-        uint256 sellerAmount = item.price - royaltyFee;
+        if (creator != item.seller) {
+            royaltyFee = (item.price * royaltyPercent) / 100;
+            require(royaltyFee <= msg.value, "Royalty fee exceeds payment");
+            sellerAmount = item.price - royaltyFee;
+        }
+
+        if (royaltyFee > 0) {
+            _totalRoyaltyFeesByCreator[creator][tokenId] += royaltyFee; // Track total royalty fees by creator
+        }
+
+        if (creator == item.seller) {
+            _totalRoyaltyFeesByCreator[creator][tokenId] += sellerAmount; // If creator is the seller, add royalty to their total
+        }
+
+        IERC721(nft).safeTransferFrom(item.seller, msg.sender, tokenId);
+        if (royaltyFee > 0) payable(creator).transfer(royaltyFee);
+        payable(item.seller).transfer(sellerAmount);
+
+        INFT(nft).updateListingStatus(tokenId, false); // Update listing status in NFT contract
 
         // delete _listings[nft][tokenId];
         _removeListing(nft, tokenId, item.seller);
@@ -157,10 +186,6 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
                 break;
             }
         }
-
-        IERC721(nft).safeTransferFrom(item.seller, msg.sender, tokenId);
-        if (royaltyFee > 0) payable(creator).transfer(royaltyFee);
-        payable(item.seller).transfer(sellerAmount);
 
         emit ItemSold(nft, tokenId, item.seller, msg.sender, item.price, block.timestamp);
     }
@@ -304,5 +329,16 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         }
 
         return logs;
+    }
+
+    function getTotalRoyaltyFeesByCreator(address nft, address creator) external view returns (RoyaltyInfo[] memory) {
+        uint256[] memory tokenIds = INFT(nft).getTokensByCreator(creator);
+        RoyaltyInfo[] memory royaltyInfos = new RoyaltyInfo[](tokenIds.length);
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            uint256 totalRoyaltyFee = _totalRoyaltyFeesByCreator[creator][tokenId];
+            royaltyInfos[i] = RoyaltyInfo(tokenId, totalRoyaltyFee);
+        }
+        return royaltyInfos;
     }
 }

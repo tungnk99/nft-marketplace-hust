@@ -38,6 +38,8 @@ contract NFTv2 is ERC721URIStorage, Ownable {
     mapping(address => uint256) private _creatorTokenCount;
     // Mapping tokenId to NFTInfo struct
     mapping(uint256 => NFTInfo) private _nftInfos;
+    // Mapping tokenId to listing status
+    mapping(uint256 => bool) private _isListed;
 
     event NFTMinted(address indexed creator, uint256 indexed tokenId, string tokenURI, uint256 timestamp);
     event NFTRoyaltyUpdated(uint256 indexed tokenId, uint256 newRoyalty, uint256 timestamp);
@@ -60,6 +62,10 @@ contract NFTv2 is ERC721URIStorage, Ownable {
     function mint(string memory tokenURI, uint256 royaltyFee) external returns (uint256) {
         require(royaltyFee >= 0, "Royalty must be non-negative");
         require(royaltyFee <= 100, "Royalty fee cannot exceed 100%");
+        // check tokenURI duplication
+        for (uint256 i = 1; i <= _tokenIds; i++) {
+            require(keccak256(bytes(_nftInfos[i].tokenURI)) != keccak256(bytes(tokenURI)), "Token URI already exists");
+        }
 
         _tokenIds++;
         uint256 newItemId = _tokenIds;
@@ -209,5 +215,18 @@ contract NFTv2 is ERC721URIStorage, Ownable {
         }
 
         return ownedTokens;
+    }
+
+    function updateListingStatus(uint256 tokenId, bool listingStatus) external {
+        require(msg.sender == _marketplaceAddress, "Not marketplace call");
+        _isListed[tokenId] = listingStatus;
+    }
+
+    // Override _update function to include listing status
+    function _update(address to, uint256 tokenId, address auth) internal virtual override returns (address) {
+        if (msg.sender != _marketplaceAddress) {
+            require(_isListed[tokenId] == false, "Token is being listed for sale");
+        }
+        return super._update(to, tokenId, auth);
     }
 }
