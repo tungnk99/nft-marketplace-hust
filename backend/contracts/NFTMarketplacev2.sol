@@ -46,7 +46,7 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
     // Mapping from seller address to their listings
     mapping(address => Listing[]) private _sellerListings;
     // Mapping from creator address to their created NFTs to total royalty fees
-    mapping(address => mapping(uint256 => uint256)) private _totalRoyaltyFeesByCreator;
+    mapping(address => mapping(address => mapping(uint256 => uint256))) private _totalRoyaltyFeesByCreator;
 
     ListingLogInfo[] private _listingLogs;
 
@@ -158,11 +158,11 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         }
 
         if (royaltyFee > 0) {
-            _totalRoyaltyFeesByCreator[creator][tokenId] += royaltyFee; // Track total royalty fees by creator
+            _totalRoyaltyFeesByCreator[nft][creator][tokenId] += royaltyFee; // Track total royalty fees by creator
         }
 
         if (creator == item.seller) {
-            _totalRoyaltyFeesByCreator[creator][tokenId] += sellerAmount; // If creator is the seller, add royalty to their total
+            _totalRoyaltyFeesByCreator[nft][creator][tokenId] += sellerAmount; // If creator is the seller, add royalty to their total
         }
 
         IERC721(nft).safeTransferFrom(item.seller, msg.sender, tokenId);
@@ -336,9 +336,13 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         RoyaltyInfo[] memory royaltyInfos = new RoyaltyInfo[](tokenIds.length);
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
-            uint256 totalRoyaltyFee = _totalRoyaltyFeesByCreator[creator][tokenId];
+            uint256 totalRoyaltyFee = _totalRoyaltyFeesByCreator[nft][creator][tokenId];
             royaltyInfos[i] = RoyaltyInfo(tokenId, totalRoyaltyFee);
         }
         return royaltyInfos;
+    }
+
+    function getTotalRoyaltyFeesByCreatorAndToken(address nft, address creator, uint256 tokenId) external view returns (uint256) {
+        return _totalRoyaltyFeesByCreator[nft][creator][tokenId];
     }
 }
