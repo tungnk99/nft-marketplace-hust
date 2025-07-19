@@ -197,10 +197,6 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
             }
         }
 
-        IERC721(nft).safeTransferFrom(item.seller, msg.sender, tokenId);
-        if (royaltyFee > 0) payable(creator).transfer(royaltyFee);
-        payable(item.seller).transfer(sellerAmount);
-
         // Update historical transactions
         HistoricalTransaction storage history = _historicalTransactions[nft][tokenId];
         if (history.transactionCount == 0) {
