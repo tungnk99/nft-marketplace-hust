@@ -14,6 +14,7 @@ export interface NFT {
   createdAt: Date;
   royaltyFee: number; // Royalty fee in percentage (0-100)
   lastSoldPrice: number; // Last sold price in wei
+  totalRoyaltyFees?: number; // Total royalty fees earned in wei
 }
 
 // Extended NFT interface with metadata loaded from IPFS
@@ -59,6 +60,8 @@ interface NFTContextType {
   getCachedIsApprovedForAll: () => boolean | null;
   getCachedApprovalStatus: (tokenId: string) => boolean;
   transferNFT: (to: string, tokenId: string) => Promise<boolean>; // New
+  getCreatedNFTs: () => Promise<NFT[]>; // New - Get NFTs created by user
+  getRoyaltyEarnings: (nftId: string) => Promise<number>; // New - Get royalty earnings for NFT
 }
 
 const NFTContext = createContext<NFTContextType | undefined>(undefined);
@@ -251,6 +254,27 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [userAddress]);
 
+  // Get NFTs created by user
+  const getCreatedNFTs = useCallback(async (): Promise<NFT[]> => {
+    if (!userAddress) return [];
+    try {
+      return await blockchainService.getNFTsByCreator(userAddress);
+    } catch (error) {
+      console.error('Error getting created NFTs:', error);
+      return [];
+    }
+  }, [userAddress]);
+
+  // Get royalty earnings for a specific NFT
+  const getRoyaltyEarnings = useCallback(async (nftId: string): Promise<number> => {
+    try {
+      return await blockchainService.getRoyaltyEarnings(nftId);
+    } catch (error) {
+      console.error('Error getting royalty earnings:', error);
+      return 0;
+    }
+  }, []);
+
   // Cached checkers for components
   const getCachedIsApprovedForAll = useCallback(() => approveAllCache, [approveAllCache]);
   const getCachedApprovalStatus = useCallback((tokenId: string) => approveSingleCache[tokenId], [approveSingleCache]);
@@ -276,7 +300,9 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       getApprovalStatus,
       getCachedIsApprovedForAll,
       getCachedApprovalStatus,
-      transferNFT // New
+      transferNFT,
+      getCreatedNFTs,
+      getRoyaltyEarnings
     }}>
       {children}
     </NFTContext.Provider>

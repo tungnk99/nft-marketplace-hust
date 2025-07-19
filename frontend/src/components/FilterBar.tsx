@@ -9,7 +9,6 @@ import { Search, Filter } from 'lucide-react';
 export interface FilterOptions {
   search: string;
   category: string;
-  priceRange: string;
   listingStatus?: string;
 }
 
@@ -33,7 +32,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
   return (
     <Card className="mb-6">
       <CardContent className="p-4">
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${showListingStatus ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${showListingStatus ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
           {/* Search by name */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -57,20 +56,6 @@ const FilterBar: React.FC<FilterBarProps> = ({
               <SelectItem value="Game">Game</SelectItem>
               <SelectItem value="Collectibles">Collectibles</SelectItem>
               <SelectItem value="Photography">Photography</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Price range filter */}
-          <Select value={filters.priceRange} onValueChange={(value) => updateFilter('priceRange', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="All Prices" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Prices</SelectItem>
-              <SelectItem value="0-0.1">{"< 0.1 ETH"}</SelectItem>
-              <SelectItem value="0.1-1">0.1 - 1 ETH</SelectItem>
-              <SelectItem value="1-5">1 - 5 ETH</SelectItem>
-              <SelectItem value="5+">5+ ETH</SelectItem>
             </SelectContent>
           </Select>
 

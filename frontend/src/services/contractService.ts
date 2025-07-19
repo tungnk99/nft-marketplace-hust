@@ -572,6 +572,119 @@ export class BlockchainService {
       throw error;
     }
   }
+
+  /*
+    Get NFTs created by a specific address.
+    creatorAddress: string
+    Returns: NFT[]
+  */
+
+  public async getTotalRoyaltyFeesByCreatorAndToken(tokenId: string): Promise<number> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+      const account = await this.signer.getAddress();
+      const totalRoyaltyFees = await this.marketplaceContract.getTotalRoyaltyFeesByCreatorAndToken(
+        nftContractAddress,
+        account,
+        tokenId
+      );
+      return totalRoyaltyFees;
+    } catch (error) {
+      console.error(`❌ Error getting total royalty fees for creator and token ${tokenId}:`, error);
+      throw error;
+    }
+  }
+  
+  public async getNFTsByCreator(creatorAddress: string): Promise<NFT[]> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+
+      const tokenInfos = await this.nftContract.getTokenInfoByCreator(creatorAddress);
+      
+      const nfts: NFT[] = [];
+
+      for (const tokenInfo of tokenInfos) {
+        try {
+          // Check if NFT is listed on marketplace
+          const listing = await this.marketplaceContract.getListingById(
+            contractAddresses.NFTv2,
+            tokenInfo.tokenId.toString()
+          );
+          const isListing = listing && 
+                           listing.seller !== ethers.ZeroAddress && 
+                           (listing.canceledAt === 0 || listing.canceledAt === 0n || listing.canceledAt === null || listing.canceledAt === undefined) &&
+                           (listing.soldAt === 0 || listing.soldAt === 0n || listing.soldAt === null || listing.soldAt === undefined);
+          const totalRoyaltyFees = await this.getTotalRoyaltyFeesByCreatorAndToken(tokenInfo.tokenId.toString());
+          const nft = {
+            id: tokenInfo.tokenId.toString(),
+            price: isListing ? Number(ethers.formatEther(listing.price)) : 0,
+            owner: tokenInfo.owner,
+            creator: tokenInfo.creator,
+            isListing,
+            createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
+            royaltyFee: Number(tokenInfo.royaltyFee),
+            cid: tokenInfo.tokenURI,
+            lastSoldPrice: Number(ethers.formatEther(tokenInfo.lastSoldPrice)) || 0,
+            totalRoyaltyFees: totalRoyaltyFees
+          };
+          
+          nfts.push(nft);
+        } catch (error) {
+          console.error(`❌ Error processing created token ${tokenInfo.tokenId}:`, error);
+        }
+      }
+
+      return nfts;
+    } catch (error) {
+      console.error('❌ Error getting NFTs by creator:', error);
+      throw error;
+    }
+  }
+
+  /*
+    Get royalty earnings for a specific NFT.
+    nftId: string
+    Returns: number (total royalty earnings in ETH)
+  */
+  public async getRoyaltyEarnings(nftId: string): Promise<number> {
+    try {
+      if (!this.signer) {
+        await this.initializeContracts();
+      }
+
+      // Get historical transactions for this NFT
+      const transactions = await this.marketplaceContract.getHistoryTransactionsByNFT(
+        contractAddresses.NFTv2, 
+        nftId
+      );
+
+      let totalRoyaltyEarnings = 0;
+
+      for (const tx of transactions) {
+        // Only count completed sales (soldAt > 0)
+        if (tx.soldAt > 0n) {
+          const salePrice = Number(ethers.formatEther(tx.price));
+          
+          // Get NFT info to get royalty fee percentage
+          const tokenInfo = await this.nftContract.getTokenInfoById(nftId);
+          const royaltyFeePercentage = Number(tokenInfo.royaltyFee);
+          
+          // Calculate royalty earnings for this sale
+          const royaltyEarnings = (salePrice * royaltyFeePercentage) / 100;
+          totalRoyaltyEarnings += royaltyEarnings;
+        }
+      }
+
+      return totalRoyaltyEarnings;
+    } catch (error) {
+      console.error(`❌ Error getting royalty earnings for NFT ${nftId}:`, error);
+      return 0;
+    }
+  }
 }
 
 // Export singleton instance
