@@ -24,7 +24,6 @@ const Marketplace: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({
     search: '',
     category: '',
-    priceRange: '',
   });
 
   useEffect(() => {
@@ -73,23 +72,7 @@ const Marketplace: React.FC = () => {
       filtered = filtered.filter(nft => nft.category === filters.category);
     }
 
-    // Apply price range filter
-    if (filters.priceRange && filters.priceRange !== 'all') {
-      filtered = filtered.filter(nft => {
-        switch (filters.priceRange) {
-          case '0-0.1':
-            return nft.price < 0.1;
-          case '0.1-1':
-            return nft.price >= 0.1 && nft.price <= 1;
-          case '1-5':
-            return nft.price > 1 && nft.price <= 5;
-          case '5+':
-            return nft.price > 5;
-          default:
-            return true;
-        }
-      });
-    }
+
 
     // Sort by newest first by default
     filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -169,7 +152,6 @@ const Marketplace: React.FC = () => {
     setFilters({
       search: '',
       category: '',
-      priceRange: '',
     });
     setCurrentPage(1);
   };
