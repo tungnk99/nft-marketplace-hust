@@ -41,12 +41,22 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
         uint256 totalRoyaltyFee;
     }
 
+    struct HistoricalTransaction {
+        uint256 blockOfFirstTransaction;
+        uint256 blockOfLastTransaction;
+        uint256 firstTransactionTimestamp;
+        uint256 lastTransactionTimestamp;
+        uint256 transactionCount;
+    }
+
     // Mapping from NFT address and tokenId to Listing
     mapping(address => mapping(uint256 => Listing)) private _listings;
     // Mapping from seller address to their listings
     mapping(address => Listing[]) private _sellerListings;
     // Mapping from creator address to their created NFTs to total royalty fees
     mapping(address => mapping(address => mapping(uint256 => uint256))) private _totalRoyaltyFeesByCreator;
+    // Mapping from NFT address and tokenId to historical transactions
+    mapping(address => mapping(uint256 => HistoricalTransaction)) private _historicalTransactions;
 
     ListingLogInfo[] private _listingLogs;
 
@@ -187,6 +197,16 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
             }
         }
 
+        // Update historical transactions
+        HistoricalTransaction storage history = _historicalTransactions[nft][tokenId];
+        if (history.transactionCount == 0) {
+            history.blockOfFirstTransaction = block.number;
+            history.firstTransactionTimestamp = block.timestamp;
+        }
+        history.blockOfLastTransaction = block.number;
+        history.lastTransactionTimestamp = block.timestamp;
+        history.transactionCount++;
+
         emit ItemSold(nft, tokenId, item.seller, msg.sender, item.price, block.timestamp);
     }
 
@@ -243,6 +263,11 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
     }
 
     function getAllListings() external view returns (ListingLogInfo[] memory) {
+        if (_listingLogs.length == 0) {
+            ListingLogInfo[] memory emptyListings;
+            return emptyListings; // Return empty array if no listings
+        }
+
         uint256 totalListings = _listingLogs.length;
         uint256 countValidListings = 0;
         for (uint i = 0; i < totalListings; i++) {
@@ -344,5 +369,9 @@ contract NFTMarketplacev2 is Ownable, ReentrancyGuard {
 
     function getTotalRoyaltyFeesByCreatorAndToken(address nft, address creator, uint256 tokenId) external view returns (uint256) {
         return _totalRoyaltyFeesByCreator[nft][creator][tokenId];
+    }
+
+    function getHistoricalTransaction(address nft, uint256 tokenId) external view returns (HistoricalTransaction memory) {
+        return _historicalTransactions[nft][tokenId];
     }
 }
