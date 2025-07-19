@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { NFTProvider } from "./contexts/NFTContext";
 import Layout from "./components/Layout";
 import Marketplace from "./pages/Marketplace";
@@ -24,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Layout />}>
               <Route index element={<Marketplace />} />
               <Route path="my-nfts" element={<MyNFTs />} />
+              <Route path="mynfts" element={<Navigate to="/my-nfts" replace />} />
               <Route path="nft/:id" element={<NFTDetail />} />
             </Route>
             <Route path="*" element={<NotFound />} />

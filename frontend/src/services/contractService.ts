@@ -15,7 +15,7 @@ export class BlockchainService {
   private static instance: BlockchainService;
   private nftContract: ethers.Contract;
   private marketplaceContract: ethers.Contract;
-  private provider: ethers.BrowserProvider;
+  private provider: ethers.BrowserProvider | ethers.JsonRpcProvider;
   private signer: ethers.JsonRpcSigner | null = null;
 
   private constructor() {
@@ -24,7 +24,10 @@ export class BlockchainService {
       this.provider = new ethers.BrowserProvider(window.ethereum);
       this.initializeContracts();
     } else {
-      throw new Error('MetaMask is not installed');
+      // For read-only operations, we can use a public provider
+      // This allows the marketplace to work without MetaMask
+      this.provider = new ethers.JsonRpcProvider('https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161');
+      this.initializeReadOnlyContracts();
     }
   }
 
@@ -54,6 +57,25 @@ export class BlockchainService {
       );
     } catch (error) {
       console.error('Error initializing contracts:', error);
+    }
+  }
+
+  private async initializeReadOnlyContracts() {
+    try {
+      // Initialize contracts without signer for read-only operations
+      this.nftContract = new ethers.Contract(
+        nftContractAddress,
+        nftContractABI,
+        this.provider
+      );
+      
+      this.marketplaceContract = new ethers.Contract(
+        marketplaceContractAddress,
+        marketplaceContractABI,
+        this.provider
+      );
+    } catch (error) {
+      console.error('Error initializing read-only contracts:', error);
     }
   }
 
@@ -309,8 +331,12 @@ export class BlockchainService {
   public async getNFTsFromMarketplace(): Promise<NFT[]> {
     
     try {
-      if (!this.signer) {
-        await this.initializeContracts();
+      if (!this.nftContract || !this.marketplaceContract) {
+        if (this.signer) {
+          await this.initializeContracts();
+        } else {
+          await this.initializeReadOnlyContracts();
+        }
       }
 
       const listings = await this.marketplaceContract.getAllListings();
@@ -427,8 +453,12 @@ export class BlockchainService {
   }> {
     
     try {
-      if (!this.signer) {
-        await this.initializeContracts();
+      if (!this.nftContract || !this.marketplaceContract) {
+        if (this.signer) {
+          await this.initializeContracts();
+        } else {
+          await this.initializeReadOnlyContracts();
+        }
       }
       const listing = await this.marketplaceContract.getListingById(
         contractAddresses.NFTv2,
@@ -472,6 +502,14 @@ export class BlockchainService {
   */
   public async getNFTInfo(nftId: string): Promise<NFT> {
     
+    if (!this.nftContract || !this.marketplaceContract) {
+      if (this.signer) {
+        await this.initializeContracts();
+      } else {
+        await this.initializeReadOnlyContracts();
+      }
+    }
+    
     const tokenInfo = await this.nftContract.getTokenInfoById(nftId);
     const listingInfo = await this.getListingInfo(nftId);
     
@@ -498,6 +536,13 @@ export class BlockchainService {
   public async isNFTListed(nftId: string): Promise<boolean> {
     
     try {
+      if (!this.nftContract || !this.marketplaceContract) {
+        if (this.signer) {
+          await this.initializeContracts();
+        } else {
+          await this.initializeReadOnlyContracts();
+        }
+      }
       const listing = await this.marketplaceContract.getListingById(
         contractAddresses.NFTv2,
         nftId
@@ -643,6 +688,136 @@ export class BlockchainService {
     } catch (error) {
       console.error('Error transferring NFT:', error);
       throw error;
+    }
+  }
+
+  /*
+    Get NFTs created by a specific address.
+    creatorAddress: string
+    Returns: NFT[]
+  */
+
+  public async getTotalRoyaltyFeesByCreatorAndToken(tokenId: string): Promise<number> {
+    try {
+      if (!this.signer) {
+        throw new Error('MetaMask connection required for royalty fees');
+      }
+      if (!this.nftContract || !this.marketplaceContract) {
+        await this.initializeContracts();
+      }
+      const account = await this.signer.getAddress();
+      const totalRoyaltyFees = await this.marketplaceContract.getTotalRoyaltyFeesByCreatorAndToken(
+        nftContractAddress,
+        account,
+        tokenId
+      );
+      return totalRoyaltyFees;
+    } catch (error) {
+      console.error(`❌ Error getting total royalty fees for creator and token ${tokenId}:`, error);
+      throw error;
+    }
+  }
+  
+  public async getNFTsByCreator(creatorAddress: string): Promise<NFT[]> {
+    try {
+      if (!this.nftContract || !this.marketplaceContract) {
+        if (this.signer) {
+          await this.initializeContracts();
+        } else {
+          await this.initializeReadOnlyContracts();
+        }
+      }
+
+      const tokenInfos = await this.nftContract.getTokenInfoByCreator(creatorAddress);
+      
+      const nfts: NFT[] = [];
+
+      for (const tokenInfo of tokenInfos) {
+        try {
+          // Check if NFT is listed on marketplace
+          const listing = await this.marketplaceContract.getListingById(
+            contractAddresses.NFTv2,
+            tokenInfo.tokenId.toString()
+          );
+          const isListing = listing && 
+                           listing.seller !== ethers.ZeroAddress && 
+                           (listing.canceledAt === 0 || listing.canceledAt === 0n || listing.canceledAt === null || listing.canceledAt === undefined) &&
+                           (listing.soldAt === 0 || listing.soldAt === 0n || listing.soldAt === null || listing.soldAt === undefined);
+          let totalRoyaltyFees = 0;
+          try {
+            totalRoyaltyFees = await this.getTotalRoyaltyFeesByCreatorAndToken(tokenInfo.tokenId.toString());
+          } catch (error) {
+            console.log('Cannot get royalty fees without MetaMask connection');
+          }
+          
+          const nft = {
+            id: tokenInfo.tokenId.toString(),
+            price: isListing ? Number(ethers.formatEther(listing.price)) : 0,
+            owner: tokenInfo.owner,
+            creator: tokenInfo.creator,
+            isListing,
+            createdAt: new Date(Number(tokenInfo.mintedAt) * 1000),
+            royaltyFee: Number(tokenInfo.royaltyFee),
+            cid: tokenInfo.tokenURI,
+            lastSoldPrice: Number(ethers.formatEther(tokenInfo.lastSoldPrice)) || 0,
+            totalRoyaltyFees: totalRoyaltyFees
+          };
+          
+          nfts.push(nft);
+        } catch (error) {
+          console.error(`❌ Error processing created token ${tokenInfo.tokenId}:`, error);
+        }
+      }
+
+      return nfts;
+    } catch (error) {
+      console.error('❌ Error getting NFTs by creator:', error);
+      throw error;
+    }
+  }
+
+  /*
+    Get royalty earnings for a specific NFT.
+    nftId: string
+    Returns: number (total royalty earnings in ETH)
+  */
+  public async getRoyaltyEarnings(nftId: string): Promise<number> {
+    try {
+      if (!this.nftContract || !this.marketplaceContract) {
+        if (this.signer) {
+          await this.initializeContracts();
+        } else {
+          await this.initializeReadOnlyContracts();
+        }
+      }
+
+      // Get historical transactions for this NFT
+      const transactions = await this.marketplaceContract.getHistoryTransactionsByNFT(
+        contractAddresses.NFTv2, 
+        nftId
+      );
+
+      let totalRoyaltyEarnings = 0;
+
+      for (const tx of transactions) {
+        // Only count completed sales (soldAt > 0)
+        if (tx.soldAt > 0n) {
+          const salePrice = Number(ethers.formatEther(tx.price));
+          
+          // Get NFT info to get royalty fee percentage
+          const tokenInfo = await this.nftContract.getTokenInfoById(nftId);
+          const royaltyFeePercentage = Number(tokenInfo.royaltyFee);
+          
+          // Calculate royalty earnings for this sale
+          const royaltyEarnings = (salePrice * royaltyFeePercentage) / 100;
+          totalRoyaltyEarnings += royaltyEarnings;
+        }
+      }
+
+      return totalRoyaltyEarnings;
+    } catch (error) {
+      console.error(`❌ Error getting royalty earnings for NFT ${nftId}:`, error);
+      return 0;
     }
   }
 }

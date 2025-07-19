@@ -7,30 +7,38 @@ import PaginationComponent from '../components/PaginationComponent';
 import AddNFTToListDialog from '../components/AddNFTToListDialog';
 import FilterBar, { FilterOptions } from '../components/FilterBar';
 import MintNFTForm from '../components/MintNFTForm';
+import RoyaltyInfo from '../components/RoyaltyInfo';
+import NFTCardSimple from '../components/NFTCardSimple';
+import NFTCardSimpleWithActions from '../components/NFTCardSimpleWithActions';
+import NFTCardTable from '../components/NFTCardTable';
+import NFTCardGrid from '../components/NFTCardGrid';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import WalletConnect from '../components/WalletConnect';
 import { useMetaMask } from '../hooks/useMetaMask';
+import { Grid3X3 } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 8;
 
 const MyNFTs: React.FC = () => {
   const navigate = useNavigate();
-  const { getUserNFTs, listNFT, delistNFT, updatePrice, getNFTWithMetadata } = useNFT();
+  const { getUserNFTs, getCreatedNFTs, listNFT, delistNFT, updatePrice, getNFTWithMetadata } = useNFT();
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState('collection');
   const [sortBy, setSortBy] = useState('name');
   const [nftsWithMetadata, setNftsWithMetadata] = useState<NFTWithMetadata[]>([]);
   const [userNFTs, setUserNFTs] = useState<NFT[]>([]);
+  const [createdNFTs, setCreatedNFTs] = useState<NFT[]>([]);
+  const [createdNFTsWithMetadata, setCreatedNFTsWithMetadata] = useState<NFTWithMetadata[]>([]);
   const [filters, setFilters] = useState<FilterOptions>({
     search: '',
     category: 'all',
-    priceRange: 'all',
     listingStatus: 'all'
   });
+
   const { isConnected, account } = useMetaMask();
 
   // Function to refresh user NFTs from blockchain
@@ -45,43 +53,72 @@ const MyNFTs: React.FC = () => {
     }
   };
 
+  // Function to refresh created NFTs from blockchain
+  const refreshCreatedNFTs = async () => {
+    try {
+      const updatedCreatedNFTs = await getCreatedNFTs();
+      setCreatedNFTs(updatedCreatedNFTs);
+      const metas = await Promise.all(updatedCreatedNFTs.map(async nft => await getNFTWithMetadata(nft)));
+      setCreatedNFTsWithMetadata(metas.filter(Boolean));
+    } catch (error) {
+      console.error('❌ Error refreshing created NFTs:', error);
+    }
+  };
+
   // Load user NFTs from blockchain
   useEffect(() => {
     const loadUserNFTs = async () => {
       if (!isConnected || !account) {
         setUserNFTs([]);
         setNftsWithMetadata([]);
+        setCreatedNFTs([]);
+        setCreatedNFTsWithMetadata([]);
         setLoading(false);
         return;
       }
       
       setLoading(true);
       try {
+        // Load owned NFTs
         const nfts = await getUserNFTs();
         setUserNFTs(nfts);
         
-        // Load metadata for all NFTs
+        // Load metadata for all owned NFTs
         const results = await Promise.allSettled(nfts.map(nft => getNFTWithMetadata(nft)));
         const validNFTs = results
           .filter(r => r.status === 'fulfilled' && r.value)
           .map(r => (r as PromiseFulfilledResult<NFTWithMetadata>).value);
         setNftsWithMetadata(validNFTs);
+
+        // Load created NFTs
+        const createdNfts = await getCreatedNFTs();
+        setCreatedNFTs(createdNfts);
+        
+        // Load metadata for all created NFTs
+        const createdResults = await Promise.allSettled(createdNfts.map(nft => getNFTWithMetadata(nft)));
+        const validCreatedNFTs = createdResults
+          .filter(r => r.status === 'fulfilled' && r.value)
+          .map(r => (r as PromiseFulfilledResult<NFTWithMetadata>).value);
+        setCreatedNFTsWithMetadata(validCreatedNFTs);
       } catch (error) {
         console.error('Error loading user NFTs:', error);
         setUserNFTs([]);
         setNftsWithMetadata([]);
+        setCreatedNFTs([]);
+        setCreatedNFTsWithMetadata([]);
       } finally {
         setLoading(false);
       }
     };
     
     loadUserNFTs();
-  }, [isConnected, account, getUserNFTs, getNFTWithMetadata]);
+  }, [isConnected, account, getUserNFTs, getCreatedNFTs, getNFTWithMetadata]);
 
   // Xử lý disconnect - chỉ reset state, không navigate
   useEffect(() => {
     if (!isConnected || !account) {
       setNftsWithMetadata([]);
+      setCreatedNFTsWithMetadata([]);
       setLoading(false);
     }
   }, [isConnected, account]);
@@ -102,22 +139,7 @@ const MyNFTs: React.FC = () => {
         return false;
       }
       
-      // Price range filter (only for listed NFTs)
-      if (filters.priceRange !== 'all' && nft.isListing) {
-        const price = nft.price || 0;
-        switch (filters.priceRange) {
-          case '0-0.1':
-            return price < 0.1;
-          case '0.1-1':
-            return price >= 0.1 && price <= 1;
-          case '1-5':
-            return price > 1 && price <= 5;
-          case '5+':
-            return price > 5;
-          default:
-            return true;
-        }
-      }
+
 
       // Listing status filter (only for collection tab)
       if (activeTab === 'collection' && filters.listingStatus !== 'all') {
@@ -167,6 +189,8 @@ const MyNFTs: React.FC = () => {
         const isActuallyListing = nft?.isListing || false;
         return isActuallyListing;
       });
+    } else if (activeTab === 'created') {
+      baseNFTs = createdNFTsWithMetadata;
     } else {
       return []; // mint tab doesn't need NFTs
     }
@@ -175,7 +199,7 @@ const MyNFTs: React.FC = () => {
     const sortedNFTs = sortNFTs(filteredNFTs);
     
     return sortedNFTs;
-  }, [nftsWithMetadata, userNFTs, activeTab, filters, sortBy]);
+  }, [nftsWithMetadata, createdNFTsWithMetadata, userNFTs, activeTab, filters, sortBy]);
 
   const displayNFTs = getDisplayNFTs;
 
@@ -204,7 +228,6 @@ const MyNFTs: React.FC = () => {
     setFilters({
       search: '',
       category: 'all',
-      priceRange: 'all',
       listingStatus: 'all'
     });
     setSortBy('name');
@@ -294,28 +317,128 @@ const MyNFTs: React.FC = () => {
       title: "NFT Minted Successfully!",
       description: "Your new NFT has been created and added to your collection.",
     });
+
+    // Refresh created NFTs list
+    await refreshCreatedNFTs();
   };
 
   // Handler to refresh after transfer
   const handleTransferSuccess = async () => {
     await refreshUserNFTs();
+    await refreshCreatedNFTs();
   };
 
   if (!isConnected) {
     return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <h1 className="text-2xl font-bold mb-4">My NFTs</h1>
-        <p className="mb-6 text-gray-600">Please connect your MetaMask wallet to view your NFTs.</p>
-        <WalletConnect />
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">My NFT Collection</h1>
+            <p className="text-gray-600 text-lg">
+              Connect your wallet to manage your digital assets
+            </p>
+          </div>
+
+          {/* Main Card */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+            {/* MetaMask Info */}
+            <div className="flex items-center mb-6">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mr-4">
+                <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">MetaMask Wallet</h3>
+                <p className="text-sm text-gray-500">The most popular Web3 wallet</p>
+              </div>
+            </div>
+
+            {/* Features List */}
+            <div className="space-y-3 mb-8">
+              <div className="flex items-center text-sm text-gray-600">
+                <svg className="w-4 h-4 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                View and manage your NFT collection
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <svg className="w-4 h-4 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                List NFTs for sale on marketplace
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <svg className="w-4 h-4 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Track royalty earnings
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <svg className="w-4 h-4 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Create and mint new NFTs
+              </div>
+            </div>
+
+            {/* Connect Button */}
+            <div className="mb-6">
+              <WalletConnect />
+            </div>
+
+            {/* Download MetaMask */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+              <div className="flex items-center">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900">Don't have MetaMask?</p>
+                  <p className="text-xs text-blue-700">Download the extension to get started</p>
+                </div>
+                <a 
+                  href="https://metamask.io/download/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+                >
+                  Download
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center mt-6">
+            <p className="text-xs text-gray-500">
+              By connecting your wallet, you agree to our{' '}
+              <a href="#" className="text-blue-600 hover:text-blue-800">Terms of Service</a>
+              {' '}and{' '}
+              <a href="#" className="text-blue-600 hover:text-blue-800">Privacy Policy</a>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div>
+      <div className="flex flex-col items-center justify-center py-24">
         <h1 className="text-3xl font-bold text-gray-800 mb-8">My NFTs</h1>
-        <LoadingSpinner />
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-gray-600">Loading your NFT collection...</p>
+        </div>
       </div>
     );
   }
@@ -326,6 +449,7 @@ const MyNFTs: React.FC = () => {
     const isActuallyListing = nft?.isListing || false;
     return isActuallyListing;
   });
+  const createdNFTsCount = createdNFTsWithMetadata.length;
 
   return (
     <div>
@@ -336,13 +460,15 @@ const MyNFTs: React.FC = () => {
           <span>Total NFTs: {nftsWithMetadata.length}</span>
           <span>Listed: {listedNFTs.length}</span>
           <span>Not Listed: {nftsWithMetadata.length - listedNFTs.length}</span>
+          <span>Created: {createdNFTsCount}</span>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="collection">My Collection ({collectionNFTs.length})</TabsTrigger>
           <TabsTrigger value="listed">Listed NFTs ({listedNFTs.length})</TabsTrigger>
+          <TabsTrigger value="created">Created NFTs ({createdNFTsCount})</TabsTrigger>
           <TabsTrigger value="mint">Mint NFT</TabsTrigger>
         </TabsList>
 
@@ -363,18 +489,20 @@ const MyNFTs: React.FC = () => {
               <p className="text-sm text-gray-500">All your NFTs - you can list unlisted ones for sale</p>
             </div>
             
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="category">Category</SelectItem>
-                <SelectItem value="status">Status (Listed first)</SelectItem>
-                <SelectItem value="price-low">Price (Low to High)</SelectItem>
-                <SelectItem value="price-high">Price (High to Low)</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-4">
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="category">Category</SelectItem>
+                  <SelectItem value="status">Status (Listed first)</SelectItem>
+                  <SelectItem value="price-low">Price (Low to High)</SelectItem>
+                  <SelectItem value="price-high">Price (High to Low)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {displayNFTs.length === 0 ? (
@@ -391,20 +519,21 @@ const MyNFTs: React.FC = () => {
                   const isActuallyListing = blockchainNFT?.isListing || false;
                   
                   return (
-                  <NFTCard
-                    key={nft.id}
-                    nft={nft}
-                      onClick={() => handleNFTClick(nft, true)}
-                      onDetails={() => handleNFTClick(nft, true)}
-                    onList={handleListNFT}
-                    onDelist={handleDelistNFT}
-                      onUpdatePrice={handleUpdateListingPrice}
-                      showListButton={!isActuallyListing}
-                      showDelistButton={isActuallyListing}
-                      showListedTab={false}
-                      showStatusBadge={true} // Show status badge in collection view
-                      onTransferSuccess={handleTransferSuccess} // Pass transfer handler
-                  />
+                    <div key={nft.id}>
+                      <NFTCard
+                        nft={nft}
+                        onClick={() => handleNFTClick(nft, true)}
+                        onDetails={() => handleNFTClick(nft, true)}
+                        onList={handleListNFT}
+                        onDelist={handleDelistNFT}
+                        onUpdatePrice={handleUpdateListingPrice}
+                        showListButton={!isActuallyListing}
+                        showDelistButton={isActuallyListing}
+                        showListedTab={false}
+                        showStatusBadge={true} // Show status badge in collection view
+                        onTransferSuccess={handleTransferSuccess} // Pass transfer handler
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -439,17 +568,19 @@ const MyNFTs: React.FC = () => {
               <p className="text-sm text-gray-500">These NFTs are currently listed on the marketplace and available for purchase</p>
             </div>
             
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="category">Category</SelectItem>
-                <SelectItem value="price-low">Price (Low to High)</SelectItem>
-                <SelectItem value="price-high">Price (High to Low)</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-4">
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="category">Category</SelectItem>
+                  <SelectItem value="price-low">Price (Low to High)</SelectItem>
+                  <SelectItem value="price-high">Price (High to Low)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {displayNFTs.length === 0 ? (
@@ -460,19 +591,93 @@ const MyNFTs: React.FC = () => {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {currentNFTs.map((nft) => (
-                  <NFTCard
-                    key={nft.id}
-                    nft={nft}
-                    onClick={() => handleNFTClick(nft, false)}
-                    onDetails={() => handleNFTClick(nft, true)}
-                    onDelist={handleDelistNFT}
-                    onUpdatePrice={handleUpdateListingPrice}
-                    showDelistButton={true}
-                    showListedTab={true}
-                    showStatusBadge={true} // Show status badge in listed view
-                  />
-                ))}
+                {currentNFTs.map((nft) => {
+                  // Find the corresponding blockchain NFT data
+                  const blockchainNFT = userNFTs.find(n => n.id === nft.id);
+                  
+                  return (
+                    <div key={nft.id}>
+                      <NFTCard
+                        nft={nft}
+                        onClick={() => handleNFTClick(nft, false)}
+                        onDetails={() => handleNFTClick(nft, true)}
+                        onDelist={handleDelistNFT}
+                        onUpdatePrice={handleUpdateListingPrice}
+                        showDelistButton={true}
+                        showListedTab={true}
+                        showStatusBadge={true} // Show status badge in listed view
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {totalPages > 1 && (
+                <PaginationComponent
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
+              )}
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="created" className="mt-6">
+          {/* Filter and Sort Controls */}
+          <FilterBar 
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            onResetFilters={handleResetFilters}
+            showListingStatus={false}
+          />
+          
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <p className="text-gray-600">
+                Showing {Math.min(startIndex + 1, displayNFTs.length)}-{Math.min(endIndex, displayNFTs.length)} of {displayNFTs.length} NFTs
+              </p>
+              <p className="text-sm text-gray-500">NFTs you have created - track your royalties and earnings</p>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="category">Category</SelectItem>
+                  <SelectItem value="price-low">Price (Low to High)</SelectItem>
+                  <SelectItem value="price-high">Price (High to Low)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {displayNFTs.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-gray-400 text-lg">No created NFTs match your filters</div>
+              <p className="text-gray-500 mt-2">Try adjusting your search or filter criteria, or create your first NFT!</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {currentNFTs.map((nft) => {
+                  // Find the corresponding blockchain NFT data
+                  const blockchainNFT = createdNFTs.find(n => n.id === nft.id);
+                  
+                  return (
+                    <div key={nft.id}>
+                      <NFTCardGrid
+                        nft={nft}
+                        royaltyFee={blockchainNFT?.royaltyFee || 0}
+                        totalRoyaltyFees={blockchainNFT?.totalRoyaltyFees}
+                        onClick={() => handleNFTClick(nft, true)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {totalPages > 1 && (
