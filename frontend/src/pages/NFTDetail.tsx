@@ -31,8 +31,10 @@ const NFTDetail: React.FC = () => {
   // Thêm state cho paging
   const [historyPage, setHistoryPage] = useState(1);
   const HISTORY_PER_PAGE = 5;
-  const totalHistoryPages = Math.ceil(historicalTransactions.length / HISTORY_PER_PAGE);
-  const pagedHistory = historicalTransactions.slice((historyPage-1)*HISTORY_PER_PAGE, historyPage*HISTORY_PER_PAGE);
+  const [totalHistoryPages, setTotalHistoryPages] = useState(1);
+  // const [pagedHistory, setPagedHistory] = useState<NFTTransaction[]>([]);
+  // const totalHistoryPages = Math.ceil(historicalTransactions.length / HISTORY_PER_PAGE);
+  // const pagedHistory = historicalTransactions.slice((historyPage-1)*HISTORY_PER_PAGE, historyPage*HISTORY_PER_PAGE);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
 
   useEffect(() => {
@@ -50,8 +52,10 @@ const NFTDetail: React.FC = () => {
         setNftWithMetadata(nftData);
 
         // Load historical transactions
-        const transactions = await getHistoricalTransactions(id);
+        const { items: transactions, total, page, pageSize, pageCount } = await getHistoricalTransactions(id, 1, HISTORY_PER_PAGE);
         setHistoricalTransactions(transactions);
+        setHistoryPage(page);
+        setTotalHistoryPages(pageCount);
         } catch (error) {
         console.error('Error loading NFT data:', error);
         setNftWithMetadata(null);
@@ -116,8 +120,20 @@ const NFTDetail: React.FC = () => {
     }
   };
 
-  function shortenAddress(addr: string) {
-    return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '';
+  const handlePageChange = async (page: number) => {
+    // Load historical transactions
+    const { items: transactions, total, page: currentPage, pageSize, pageCount } = await getHistoricalTransactions(id, page, HISTORY_PER_PAGE);
+    setHistoricalTransactions(transactions);
+    setHistoryPage(currentPage);
+    setTotalHistoryPages(pageCount);
+  };
+
+  function shortenAddress(addr: string, startCharacterCounts = 6, endCharacterCounts = 4) {
+    return addr ? addr.slice(0, startCharacterCounts) + '...' + addr.slice(-endCharacterCounts) : '';
+  }
+
+  function shortenTransactionHash(hash: string, startCharacterCounts = 10, endCharacterCounts = 6) {
+    return hash ? hash.slice(0, startCharacterCounts) + '...' + hash.slice(-endCharacterCounts) : '';
   }
 
   const handleUpdatePrice = async (id: string, price: number) => {
@@ -432,20 +448,38 @@ const NFTDetail: React.FC = () => {
               <div className="overflow-x-auto rounded-lg shadow-sm">
                 <Table className="bg-white text-gray-800 border border-gray-200">
                   <TableHeader>
-                    <TableRow className="bg-gray-100">
-                      <TableHead className="text-blue-600 text-center">Time</TableHead>
-                      <TableHead className="text-blue-600 text-center">Seller</TableHead>
-                      <TableHead className="text-blue-600 text-center">Buyer</TableHead>
-                      <TableHead className="text-blue-600 text-center">Price</TableHead>
+                    <TableRow className="bg-gray-200 hover:bg-gray-300">
+                      <TableHead className="text-black-700 text-center font-bold">Time</TableHead>
+                      <TableHead className="text-black-700 text-center font-bold">Transaction Hash</TableHead>
+                      <TableHead className="text-black-700 text-center font-bold">Seller</TableHead>
+                      <TableHead className="text-black-700 text-center font-bold">Buyer</TableHead>
+                      <TableHead className="text-black-700 text-right font-bold">Price</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pagedHistory.map((transaction) => (
-                      <TableRow key={transaction.id} className="hover:bg-blue-50 transition">
-                        <TableCell className="text-center text-sm">{transaction.soldAt.toLocaleDateString()} {transaction.soldAt.toLocaleTimeString()}</TableCell>
-                        <TableCell className="text-center text-xs font-mono">{transaction.seller}</TableCell>
-                        <TableCell className="text-center text-xs font-mono">{transaction.buyer}</TableCell>
-                        <TableCell className="text-right text-sm font-semibold">{transaction.price} ETH</TableCell>
+                    {historicalTransactions.map((transaction, index) => (
+                      <TableRow key={index} className="hover:bg-blue-50 transition">
+                        <TableCell className="text-center">
+                          {transaction.soldAt.toLocaleDateString()} {transaction.soldAt.toLocaleTimeString()}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <a className="text-blue-600 hover:underline" href={`https://sepolia.etherscan.io/tx/${transaction.transactionHash}`} target="_blank" rel="noopener noreferrer">
+                            {shortenTransactionHash(transaction.transactionHash, 12, 8)}
+                          </a>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <a className="text-blue-600 hover:underline" href={`https://sepolia.etherscan.io/address/${transaction.seller}`} target="_blank" rel="noopener noreferrer">
+                            {shortenAddress(transaction.seller, 8, 6)}
+                          </a>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <a className="text-blue-600 hover:underline" href={`https://sepolia.etherscan.io/address/${transaction.buyer}`} target="_blank" rel="noopener noreferrer">
+                            {shortenAddress(transaction.buyer, 8, 6)}
+                          </a>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {transaction.price} ETH
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -454,11 +488,11 @@ const NFTDetail: React.FC = () => {
               {/* Paging controls */}
               {totalHistoryPages > 1 && (
                 <div className="flex justify-center items-center gap-2 mt-4">
-                  <Button size="icon" variant="ghost" onClick={() => setHistoryPage(p => Math.max(1, p-1))} disabled={historyPage === 1}>
+                  <Button size="icon" variant="ghost" onClick={() => handlePageChange(Math.max(1, historyPage - 1))} disabled={historyPage === 1}>
                     <ChevronLeft className="w-5 h-5" />
                   </Button>
                   <span className="text-sm text-gray-600">Page {historyPage} of {totalHistoryPages}</span>
-                  <Button size="icon" variant="ghost" onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p+1))} disabled={historyPage === totalHistoryPages}>
+                  <Button size="icon" variant="ghost" onClick={() => handlePageChange(Math.min(totalHistoryPages, historyPage + 1))} disabled={historyPage === totalHistoryPages}>
                     <ChevronRight className="w-5 h-5" />
                   </Button>
                 </div>

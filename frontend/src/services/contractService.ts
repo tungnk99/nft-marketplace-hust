@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { NFT, NFTTransaction } from '../contexts/NFTContext';
+import { NFT, NFTTransaction, Pagination } from '../contexts/NFTContext';
 
 // Import contract addresses
 import contractAddresses from '../../contracts/contract_addresses.json';
@@ -521,28 +521,101 @@ export class BlockchainService {
      nftId: string
      Returns: Array of transaction objects
   */
-  public async getNFTHistoricalTransactions(nftId: string): Promise<NFTTransaction[]> {
+  public async getNFTHistoricalTransactions(nftId: string, page = 1, limit = 10, maxBlockRange = 10000): Promise<Pagination<NFTTransaction>> {
     try {
       if (!this.signer) {
         await this.initializeContracts();
       }
 
-      const transactions: NFTTransaction[] = [];
-      const transactionsFromBlockchain = await this.marketplaceContract.getHistoryTransactionsByNFT(nftContractAddress, nftId);
+      const [ startBlockBigInt, latestBlockBigInt, startTimestamp, latestTimestamp, transactionCountBigInt ] = await this.marketplaceContract.getHistoricalTransaction(nftContractAddress, nftId);
 
-      for (const tx of transactionsFromBlockchain) {
+      const startBlock = Number(startBlockBigInt);
+      const latestBlock = Number(latestBlockBigInt);
+      const transactionCount = Number(transactionCountBigInt);
+      const offset = (page - 1) * limit;
+
+      if (offset >= transactionCount) {
+        return {
+          items: [],
+          total: transactionCount,
+          page,
+          pageSize: limit,
+          pageCount: Math.ceil(transactionCount / limit)
+        };
+      }
+
+      console.log(`📜 Getting historical transactions for NFT ${nftId} from block ${startBlock} to ${latestBlock} with ${transactionCount}...`);
+
+      const targetEnd = transactionCount - offset;
+      const targetStart = Math.max(targetEnd - limit, 0);
+      const length = targetEnd - targetStart;
+
+      const filters = this.marketplaceContract.filters.ItemSold(
+        nftContractAddress,
+        nftId,
+        null, // seller
+        null,  // buyer
+        null, // price
+        null  // timestamp
+      );
+
+      const allLogs = [];
+      let currentToBlock = latestBlock;
+      let currentFromBlock = Math.max(currentToBlock - maxBlockRange + 1, startBlock);
+
+      while (currentFromBlock <= currentToBlock) {
+        const logs = await this.marketplaceContract.queryFilter(filters, currentFromBlock, currentToBlock);
+        // reverse logs to get the most recent first
+        logs.reverse();
+        allLogs.push(...logs);
+        
+        if (allLogs.length >= length + offset) {
+          break;
+        }
+
+        currentToBlock = currentFromBlock - 1;
+        currentFromBlock = Math.max(currentToBlock - maxBlockRange + 1, startBlock);
+      }
+      
+      // Slice the logs to get only the target range
+      const selectedLogs = allLogs.slice(offset, offset + length);
+      
+
+      // const transactionEvents = await this.marketplaceContract.queryFilter(filters, startBlock, latestBlock);
+      // for (const event of transactionEvents) {
+      //   const timestamp = new Date(Number(event.args?.timestamp) * 1000);
+      //   console.log(`📜 Transaction Event: ${event.transactionHash} - ${event.args?.tokenId} - ${timestamp.toLocaleDateString()} - ${timestamp.toLocaleTimeString()}`);
+      // }
+
+      const transactions: NFTTransaction[] = [];
+      // const transactionsFromBlockchain = await this.marketplaceContract.getHistoryTransactionsByNFT(nftContractAddress, nftId);
+
+      for (const tx of selectedLogs) {
+        console.log(tx);
+        console.log(tx.transactionHash);
+        
+        
+        const txArgs = tx.args;
+
         transactions.push({
-          id: tx.tokenId,
-          seller: tx.seller,
-          buyer: tx.buyer,
-          price: Number(ethers.formatEther(tx.price)),
-          listedAt: new Date(Number(tx.listedAt) * 1000),
-          updatedAt: new Date(Number(tx.updatedAt) * 1000),
-          soldAt: new Date(Number(tx.soldAt) * 1000),
+          transactionHash: tx.transactionHash,
+          id: txArgs.tokenId,
+          seller: txArgs.seller,
+          buyer: txArgs.buyer,
+          price: Number(ethers.formatEther(txArgs.price)),
+          listedAt: new Date(0),
+          updatedAt: new Date(0),
+          soldAt: new Date(Number(txArgs.timestamp) * 1000),
         });
       }
 
-      return transactions;
+      return {
+        items: transactions,
+        total: transactionCount,
+        page,
+        pageSize: limit,
+        pageCount: Math.ceil(transactionCount / limit)
+      };
     } catch (error) {
       console.error(`❌ Error getting historical transactions for NFT ${nftId}:`, error);
       throw error;

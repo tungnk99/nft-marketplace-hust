@@ -343,6 +343,57 @@
           "type": "uint256"
         }
       ],
+      "name": "getHistoricalTransaction",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "blockOfFirstTransaction",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "blockOfLastTransaction",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "firstTransactionTimestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "lastTransactionTimestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "transactionCount",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct NFTMarketplacev2.HistoricalTransaction",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "nft",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
       "name": "getHistoryTransactionsByNFT",
       "outputs": [
         {

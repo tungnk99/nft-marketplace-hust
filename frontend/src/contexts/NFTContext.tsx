@@ -29,6 +29,7 @@ export interface NFTWithMetadata extends NFT {
 }
 
 export interface NFTTransaction {
+  transactionHash: string;
   id: string;
   seller: string;
   price: number;
@@ -36,6 +37,14 @@ export interface NFTTransaction {
   updatedAt: Date;
   soldAt: Date;
   buyer: string;
+}
+
+export interface Pagination<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
 }
 
 interface NFTContextType {
@@ -54,7 +63,7 @@ interface NFTContextType {
   isApprovedForAll: (owner: string, operator: string) => Promise<boolean>;
   approveToMarketplace: (tokenId: string) => Promise<boolean>;
   setApprovalForAllToMarketplace: (approved: boolean) => Promise<boolean>;
-  getHistoricalTransactions: (nftId: string) => Promise<NFTTransaction[]>;
+  getHistoricalTransactions: (nftId: string, page: number, limit: number) => Promise<Pagination<NFTTransaction>>;
   getApprovalStatus: (tokenId: string) => Promise<boolean>; // Add this
   getCachedIsApprovedForAll: () => boolean | null;
   getCachedApprovalStatus: (tokenId: string) => boolean;
@@ -224,13 +233,13 @@ export const NFTProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return await blockchainService.setApprovalForAllToMarketplace(approved);
   }, []);
 
-  const getHistoricalTransactions = useCallback(async (nftId: string): Promise<NFTTransaction[]> => {
+  const getHistoricalTransactions = useCallback(async (nftId: string, page: number = 1, limit: number = 5): Promise<Pagination<NFTTransaction>> => {
     try {
       // Call blockchain service to get historical transactions
-      return await blockchainService.getNFTHistoricalTransactions(nftId);
+      return await blockchainService.getNFTHistoricalTransactions(nftId, page, limit);
     } catch (error) {
       console.error('Error getting historical transactions:', error);
-      return [];
+      return { items: [], total: 0, page: 1, pageSize: limit, pageCount: 0 };
     }
   }, []);
 
