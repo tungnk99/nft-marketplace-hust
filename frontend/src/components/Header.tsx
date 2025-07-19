@@ -7,7 +7,12 @@ import WalletConnect from './WalletConnect';
 const Header: React.FC = () => {
   const location = useLocation();
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/my-nfts') {
+      return location.pathname === '/my-nfts' || location.pathname === '/mynfts';
+    }
+    return location.pathname === path;
+  };
 
   const navItems = [
     { path: '/', label: 'Marketplace', icon: Store },
