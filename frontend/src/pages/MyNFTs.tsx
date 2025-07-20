@@ -126,21 +126,29 @@ const MyNFTs: React.FC = () => {
   // Filter NFTs based on filters
   const filterNFTs = useCallback((nftList: NFTWithMetadata[]) => {
     return nftList.filter(nftWithMetadata => {
+      // Nếu là tab created thì chỉ filter theo search và category
+      if (activeTab === 'created') {
+        // Search filter
+        if (filters.search && !nftWithMetadata.name.toLowerCase().includes(filters.search.toLowerCase())) {
+          return false;
+        }
+        // Category filter
+        if (filters.category !== 'all' && nftWithMetadata.category !== filters.category) {
+          return false;
+        }
+        return true;
+      }
+      // Các tab khác giữ nguyên logic cũ
       const nft = userNFTs.find(n => n.id === nftWithMetadata.id);
       if (!nft) return false;
-      
       // Search filter
       if (filters.search && !nftWithMetadata.name.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
-      
       // Category filter
       if (filters.category !== 'all' && nftWithMetadata.category !== filters.category) {
         return false;
       }
-      
-
-
       // Listing status filter (only for collection tab)
       if (activeTab === 'collection' && filters.listingStatus !== 'all') {
         if (filters.listingStatus === 'listed' && !nft.isListing) {
@@ -150,7 +158,6 @@ const MyNFTs: React.FC = () => {
           return false;
         }
       }
-      
       return true;
     });
   }, [userNFTs, filters, activeTab]);
