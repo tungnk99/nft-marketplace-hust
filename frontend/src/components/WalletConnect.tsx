@@ -4,7 +4,11 @@ import { Button } from '@/components/ui/button';
 import { useMetaMask } from '../hooks/useMetaMask';
 import { toast } from '@/hooks/use-toast';
 
-const WalletConnect: React.FC = () => {
+interface WalletConnectProps {
+  compact?: boolean;
+}
+
+const WalletConnect: React.FC<WalletConnectProps> = ({ compact = false }) => {
   const { isConnected, account, isInstalled, connectWallet, disconnectWallet, clearPendingRequests, forceRefreshConnection } = useMetaMask();
   const [isClearing, setIsClearing] = useState(false);
   const [lastRetryTime, setLastRetryTime] = useState(0);
@@ -13,10 +17,14 @@ const WalletConnect: React.FC = () => {
     return (
       <Button 
         onClick={connectWallet}
-        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-6 rounded-xl transition-colors"
+        className={compact
+          ? 'px-3 py-1 h-8 rounded-md bg-orange-600 hover:bg-orange-700 text-white font-bold text-lg'
+          : 'w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-6 rounded-xl transition-colors'}
+        variant={compact ? 'outline' : undefined}
+        size={compact ? 'sm' : undefined}
       >
-        <Wallet className="w-5 h-5 mr-2" />
-        <span>Install MetaMask</span>
+        <Wallet className={compact ? 'w-4 h-4 mr-2' : 'w-5 h-5 mr-2'} />
+        <span className={compact ? 'text-lg font-bold text-white' : ''}>Install MetaMask</span>
       </Button>
     );
   }
@@ -24,9 +32,11 @@ const WalletConnect: React.FC = () => {
   if (isConnected && account) {
     return (
       <div className="flex items-center space-x-2">
-        <div className="flex items-center space-x-2 bg-green-100 px-4 py-3 rounded-xl border border-green-200">
-          <Wallet className="w-4 h-4 text-green-600" />
-          <span className="text-sm font-mono text-green-700 font-medium">
+        <div className={compact
+          ? 'flex items-center space-x-1 bg-green-100 px-2 py-1 rounded-md border border-green-200'
+          : 'flex items-center space-x-2 bg-green-100 px-4 py-3 rounded-xl border border-green-200'}>
+          <Wallet className={compact ? 'w-3 h-3 text-green-600' : 'w-4 h-4 text-green-600'} />
+          <span className={compact ? 'text-xs font-mono text-green-700 font-medium' : 'text-sm font-mono text-green-700 font-medium'}>
             {account.slice(0, 6)}...{account.slice(-4)}
           </span>
         </div>
@@ -97,26 +107,31 @@ const WalletConnect: React.FC = () => {
   };
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? '' : 'space-y-3'}>
       <Button 
         onClick={connectWallet}
-        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
+        className={compact
+          ? 'px-3 py-1 h-8 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-lg'
+          : 'w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl'}
+        variant={compact ? 'outline' : undefined}
+        size={compact ? 'sm' : undefined}
       >
-        <Wallet className="w-5 h-5 mr-2" />
-        <span>Connect MetaMask</span>
+        <Wallet className={compact ? 'w-4 h-4 mr-2' : 'w-5 h-5 mr-2'} />
+        <span className={compact ? 'text-lg font-bold text-white' : ''}>Connect MetaMask</span>
       </Button>
-      
-      <Button 
-        onClick={handleReconnect}
-        variant="outline"
-        size="sm"
-        disabled={isClearing}
-        className="w-full text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400 rounded-lg transition-colors"
-        title="Disconnect and reconnect to MetaMask"
-      >
-        <RefreshCw className={`w-4 h-4 mr-2 ${isClearing ? 'animate-spin' : ''}`} />
-        <span>Reconnect</span>
-      </Button>
+      {!compact && (
+        <Button 
+          onClick={handleReconnect}
+          variant="outline"
+          size="sm"
+          disabled={isClearing}
+          className="w-full text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400 rounded-lg transition-colors"
+          title="Disconnect and reconnect to MetaMask"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isClearing ? 'animate-spin' : ''}`} />
+          <span>Reconnect</span>
+        </Button>
+      )}
     </div>
   );
 };
