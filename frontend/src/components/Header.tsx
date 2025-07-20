@@ -47,7 +47,7 @@ const Header: React.FC = () => {
             ))}
           </nav>
 
-          <WalletConnect />
+          <WalletConnect compact />
         </div>
       </div>
     </header>
